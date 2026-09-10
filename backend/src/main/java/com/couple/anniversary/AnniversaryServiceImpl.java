@@ -25,8 +25,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AnniversaryServiceImpl implements AnniversaryService {
 
-    /** upcoming 窗口：未来 180 天 */
-    private static final long UPCOMING_WINDOW_DAYS = 180;
 
     private final AnniversaryMapper anniversaryMapper;
     private final CoupleMapper coupleMapper;
@@ -42,10 +40,8 @@ public class AnniversaryServiceImpl implements AnniversaryService {
         // 在一起的天数
         long daysTogether = ChronoUnit.DAYS.between(couple.getStartDate(), LocalDate.now());
 
-        // 所有非 start 纪念日，计算下一次到达日期与剩余天数
-        List<Anniversary> list = list(coupleId).stream()
-                .filter(a -> !Boolean.TRUE.equals(a.getIsStart()))
-                .toList();
+        // 计算下一次到达日期与剩余天数(包括isStart)
+        List<Anniversary> list = list(coupleId);
         List<AnniversaryNextVO> withDaysLeft = list.stream()
                 .map(a -> {
                     LocalDate next = nextOccurrence(a.getDate(), LocalDate.now());
@@ -54,16 +50,17 @@ public class AnniversaryServiceImpl implements AnniversaryService {
                 })
                 .toList();
 
-        // nextAnniversary：下一次到达日期最近的（daysLeft 最小且 > 0）
+        // nextAnniversary：下一次到达日期最近的（daysLeft 最小且 >= 0）
         AnniversaryNextVO next = withDaysLeft.stream()
-                .filter(v -> v.getDaysLeft() > 0)
+                .filter(v -> v.getDaysLeft() >= 0)
                 .min(Comparator.comparingLong(AnniversaryNextVO::getDaysLeft))
                 .orElse(null);
 
-        // upcoming：未来 180 天内，按 daysLeft 升序
+        // upcoming：只取最近5个，按 daysLeft 升序
         List<AnniversaryNextVO> upcoming = withDaysLeft.stream()
-                .filter(v -> v.getDaysLeft() > 0 && v.getDaysLeft() <= UPCOMING_WINDOW_DAYS)
+                .filter(v -> v.getDaysLeft() >= 0)
                 .sorted(Comparator.comparingLong(AnniversaryNextVO::getDaysLeft))
+                .limit(5)
                 .toList();
 
         return new AnniversarySummaryVO(daysTogether, next, upcoming);
@@ -133,7 +130,8 @@ public class AnniversaryServiceImpl implements AnniversaryService {
      */
     private LocalDate nextOccurrence(LocalDate anniversaryDate, LocalDate today) {
         LocalDate thisYear = withYearSafe(anniversaryDate, today.getYear());
-        if (thisYear.isAfter(today)) {
+        // 如果今年纪念日还没有过（包括今天），那么直接返回
+        if (!thisYear.isBefore(today)) {
             return thisYear;
         }
         return withYearSafe(anniversaryDate, today.getYear() + 1);
@@ -142,6 +140,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     /** 2/29 在非闰年时退化为 2/28 */
     private LocalDate withYearSafe(LocalDate date, int year) {
         try {
+            // 更换年份时，可能导致这一年并没有2月29日，所以会报错，这里采用退化到2月28
             return date.withYear(year);
         } catch (DateTimeException e) {
             return date.withDayOfMonth(28).withYear(year);

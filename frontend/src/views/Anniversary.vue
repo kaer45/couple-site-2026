@@ -10,7 +10,9 @@
         <template v-if="summary.nextAnniversary">
           <div class="anni-label">🎉 下一个纪念日</div>
           <div class="anni-next-name">{{ summary.nextAnniversary.name }}</div>
-          <div class="anni-sub">还有 {{ summary.nextAnniversary.daysLeft }} 天（{{ summary.nextAnniversary.date }}）</div>
+          <!-- 这里需要把date日期展示为月和日即可 -->
+          <div class="anni-sub">还有 {{ summary.nextAnniversary.daysLeft }} 天（{{
+            formatMonthDay(summary.nextAnniversary.date) }}）</div>
         </template>
         <template v-else>
           <div class="anni-label">🎉 下一个纪念日</div>
@@ -18,23 +20,26 @@
         </template>
       </div>
       <el-button type="primary" round class="anni-add-btn" @click="openDialog()">
-        <el-icon><Plus /></el-icon>&nbsp;新增纪念日
+        <el-icon>
+          <Plus />
+        </el-icon>&nbsp;新增纪念日
       </el-button>
     </div>
 
-    <!-- ===== 即将到来的纪念日（180 天内） ===== -->
+    <!-- 这里需要修改一下，使用el-tag这样的样式展示数据实在不好看 -->
+    <!-- ===== 即将到来的纪念日（最近5条） ===== -->
     <div v-if="summary.upcoming && summary.upcoming.length" class="anni-upcoming">
       <div class="section-title">即将到来</div>
-      <el-tag
-        v-for="item in summary.upcoming"
-        :key="item.id"
-        round
-        effect="light"
-        type="danger"
-        class="upcoming-tag"
-      >
-        {{ item.name }} · {{ item.daysLeft }} 天后
-      </el-tag>
+      <div class="upcoming-grid">
+        <div v-for="item in summary.upcoming" :key="item.id" class="upcoming-card">
+          <div class="upcoming-card-days">
+            {{ item.daysLeft === 0 ? '今天' : item.daysLeft }}
+            <span v-if="item.daysLeft > 0" class="upcoming-card-unit">天后</span>
+          </div>
+          <div class="upcoming-card-name">{{ item.name }}</div>
+          <div class="upcoming-card-date">📅 {{ formatMonthDay(item.date) }}</div>
+        </div>
+      </div>
     </div>
 
     <!-- ===== 纪念日列表 ===== -->
@@ -56,7 +61,7 @@
           </div>
           <div class="anni-item-date">📅 {{ item.date }}</div>
         </div>
-        <div class="anni-item-days" :class="{ past: daysLeft(item) < 0, today: daysLeft(item) === 0 }">
+        <div class="anni-item-days" :class="{ today: daysLeft(item) === 0 }">
           {{ daysText(item) }}
         </div>
         <div class="anni-item-actions">
@@ -74,13 +79,8 @@
           <el-input v-model="form.name" maxlength="20" show-word-limit placeholder="比如：第一次旅行" />
         </el-form-item>
         <el-form-item label="日期" prop="date">
-          <el-date-picker
-            v-model="form.date"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择日期"
-            style="width: 100%"
-          />
+          <el-date-picker v-model="form.date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期"
+            style="width: 100%" />
         </el-form-item>
         <el-form-item label="提前提醒" prop="remindDays">
           <el-input-number v-model="form.remindDays" :min="0" :max="30" />
@@ -150,17 +150,30 @@ async function fetchList() {
   }
 }
 
-// 距离今天的天数（负数为已过去）
+// 算"下一次"还有几天（永远 >= 0）
 function daysLeft(item) {
-  return dayjs(item.date).startOf('day').diff(dayjs().startOf('day'), 'day')
+  const today = dayjs().startOf('day')
+  const date = dayjs(item.date).startOf('day')
+
+  // 把月-日套到今年
+  let next = date.year(today.year())
+  if (next.isBefore(today)) {
+    next = next.add(1, 'year')
+  }
+  return next.diff(today, 'day')
 }
 
 // 剩余天数文案
 function daysText(item) {
   const d = daysLeft(item)
-  if (d > 0) return `还有 ${d} 天`
   if (d === 0) return '就是今天 🎉'
-  return `已过去 ${Math.abs(d)} 天`
+  return `还有 ${d} 天`
+}
+
+// "2024-05-01" → "5 月 1 日"，格式化下一个纪念日的日期展示
+function formatMonthDay(date) {
+  const d = dayjs(date)
+  return `${d.month() + 1} 月 ${d.date()} 日`
 }
 
 // 打开弹窗；传 item 为编辑，不传为新增
@@ -264,15 +277,56 @@ async function handleRemove(item) {
   color: #a98d99;
 }
 
-.anni-upcoming {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+
+
+.upcoming-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
 }
 
-.upcoming-tag {
-  border-radius: 999px;
-  padding: 0 14px;
+.upcoming-card {
+  padding: 18px 14px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(236, 106, 143, 0.15);
+  border-radius: 14px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.upcoming-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(236, 106, 143, 0.12);
+}
+
+.upcoming-card-days {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--el-color-primary);
+  line-height: 1;
+}
+
+.upcoming-card-unit {
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.upcoming-card-name {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b5260;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-card-date {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #a98d99;
 }
 
 /* 列表 */
@@ -312,9 +366,6 @@ async function handleRemove(item) {
   white-space: nowrap;
 }
 
-.anni-item-days.past {
-  color: #a98d99;
-}
 
 .anni-item-days.today {
   color: #f5a623;
