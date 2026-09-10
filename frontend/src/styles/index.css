@@ -1,0 +1,130 @@
+/* ================= 全局样式：粉色暖色系，温馨精致 ================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* 覆盖 Element Plus 主题色为粉色暖色系 */
+  --el-color-primary: #ec6a8f;
+  --el-color-primary-light-3: #f18aa6;
+  --el-color-primary-light-5: #f5acbf;
+  --el-color-primary-light-7: #f9ced9;
+  --el-color-primary-light-8: #fbdfe6;
+  --el-color-primary-light-9: #fdf0f3;
+  --el-color-primary-dark-2: #d9557b;
+  --el-border-radius-base: 10px;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  /* 温柔的粉色渐变背景 */
+  background: linear-gradient(135deg, #fff7f9 0%, #ffeaf0 50%, #ffdde8 100%);
+  background-attachment: fixed;
+  color: #5c4a52;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 通用圆角卡片 */
+.warm-card {
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(236, 106, 143, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+/* 页面容器：居中 + 充足留白 */
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 8px 48px;
+}
+
+/* Element Plus 卡片圆角 */
+.el-card {
+  border-radius: 16px;
+}
+
+/* 登录 / 注册 / 绑定页通用布局 */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 36px 32px;
+  text-align: center;
+}
+
+.auth-logo {
+  font-size: 48px;
+}
+
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #6b5260;
+  margin: 12px 0 6px;
+}
+
+.auth-sub {
+  font-size: 13px;
+  color: #a98d99;
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+.auth-btn {
+  width: 100%;
+  border-radius: 999px;
+  height: 44px;
+  font-size: 16px;
+}
+
+.auth-footer {
+  margin-top: 18px;
+  font-size: 14px;
+  color: #a98d99;
+}
+
+.auth-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* 小标题 */
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #6b5260;
+  margin: 28px 0 14px;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(236, 106, 143, 0.35);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
