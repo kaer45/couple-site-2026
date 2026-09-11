@@ -8,15 +8,21 @@
       </div>
       <el-menu :default-active="activeMenu" router class="layout-menu">
         <el-menu-item index="/">
-          <el-icon><House /></el-icon>
+          <el-icon>
+            <House />
+          </el-icon>
           <span>首页时间轴</span>
         </el-menu-item>
         <el-menu-item index="/anniversaries">
-          <el-icon><Calendar /></el-icon>
+          <el-icon>
+            <Calendar />
+          </el-icon>
           <span>纪念日</span>
         </el-menu-item>
         <el-menu-item index="/albums">
-          <el-icon><Camera /></el-icon>
+          <el-icon>
+            <Camera />
+          </el-icon>
           <span>相册</span>
         </el-menu-item>
       </el-menu>
@@ -26,25 +32,58 @@
       <!-- 顶部栏：昵称 + 头像 + 退出 -->
       <el-header class="layout-header">
         <div class="header-left">
-          <el-tag
-            v-if="!userStore.isBound"
-            type="warning"
-            effect="light"
-            class="bind-tip"
-            @click="router.push('/bind')"
-          >
+          <el-tag v-if="!userStore.isBound" type="warning" effect="light" class="bind-tip"
+            @click="router.push('/bind')">
             🎀 还未绑定情侣，点我去绑定
           </el-tag>
         </div>
         <div class="header-right">
+          <!-- 通知铃铛：未读红点 + 下拉面板 -->
+          <el-popover v-model:visible="notifVisible" placement="bottom-end" :width="360" trigger="manual"
+            popper-class="notif-popper">
+            <template #reference>
+              <el-badge :value="notifStore.unread" :hidden="notifStore.unread === 0" :max="99" class="notif-bell">
+                <el-button class="bell-btn" circle text @click="toggleNotifPanel">
+                  <el-icon :size="20">
+                    <Bell />
+                  </el-icon>
+                </el-button>
+              </el-badge>
+            </template>
+            <div class="notif-panel">
+              <div class="notif-panel-title">通知</div>
+              <template v-if="notifLoading">
+                <el-skeleton :rows="3" animated />
+              </template>
+              <template v-else-if="recent.length">
+                <div v-for="n in recent" :key="n.id" class="notif-item" :class="{ unread: !n.isRead }"
+                  @click="markOneRead(n)">
+                  <span v-if="!n.isRead" class="notif-dot"></span>
+                  <div class="notif-body">
+                    <div class="notif-item-title">{{ n.title }}</div>
+                    <div class="notif-item-content">{{ n.content }}</div>
+                  </div>
+                  <span class="notif-item-time">{{ dayjs(n.createdAt).fromNow() }}</span>
+                </div>
+              </template>
+              <EmptyState v-else description="暂无通知" icon="🔔" />
+              <div class="notif-footer">
+                <el-button link type="primary" @click="goNotifications">查看全部</el-button>
+              </div>
+            </div>
+          </el-popover>
+
           <el-tooltip content="点击更换头像" placement="bottom">
-            <el-avatar :size="36" :src="userStore.userInfo?.avatar || undefined" class="header-avatar clickable" @click="avatarDialogVisible = true">
+            <el-avatar :size="36" :src="userStore.userInfo?.avatar || undefined" class="header-avatar clickable"
+              @click="avatarDialogVisible = true">
               {{ avatarText }}
             </el-avatar>
           </el-tooltip>
           <span class="header-nickname">{{ userStore.nickname }}</span>
           <el-button link type="danger" @click="handleLogout">
-            <el-icon><SwitchButton /></el-icon>&nbsp;退出
+            <el-icon>
+              <SwitchButton />
+            </el-icon>&nbsp;退出
           </el-button>
         </div>
       </el-header>
@@ -58,15 +97,8 @@
     <!-- 更换头像弹窗：先经 /api/files/upload 上传，再调用 PUT /api/auth/avatar 保存 -->
     <el-dialog v-model="avatarDialogVisible" title="更换头像" width="420px" align-center>
       <div class="avatar-upload-wrap">
-        <el-upload
-          :action="uploadAction"
-          :headers="uploadHeaders"
-          :show-file-list="false"
-          accept="image/*"
-          :before-upload="beforeAvatarUpload"
-          :on-success="handleAvatarSuccess"
-          :on-error="handleAvatarError"
-        >
+        <el-upload :action="uploadAction" :headers="uploadHeaders" :show-file-list="false" accept="image/*"
+          :before-upload="beforeAvatarUpload" :on-success="handleAvatarSuccess" :on-error="handleAvatarError">
           <el-avatar :size="120" :src="avatarPreview || userStore.userInfo?.avatar || undefined" class="avatar-preview">
             {{ avatarText }}
           </el-avatar>
@@ -84,12 +116,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
+import { useNotificationStore } from '@/stores/notification'
 import * as authApi from '@/api/auth'
+import * as notificationApi from '@/api/notification'
+import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const notifStore = useNotificationStore()
 
 // 菜单高亮跟随路由（相册详情页 /albums/:id 也高亮"相册"）
 const activeMenu = computed(() => {
@@ -99,6 +136,50 @@ const activeMenu = computed(() => {
 
 // 头像兜底：昵称首字符
 const avatarText = computed(() => (userStore.nickname || '亲').charAt(0))
+
+/* ========== 通知铃铛 ========== */
+const notifVisible = ref(false)
+const notifLoading = ref(false)
+const recent = ref([])
+
+// 加载最近 5 条（打开面板时）
+async function loadRecent() {
+  notifLoading.value = true
+  try {
+    const data = await notificationApi.page({ current: 1, size: 5 })
+    recent.value = data.records || []
+    await notifStore.refresh()
+  } catch (e) {
+    /* 错误提示已由拦截器统一处理 */
+  } finally {
+    notifLoading.value = false
+  }
+}
+
+function toggleNotifPanel() {
+  notifVisible.value = !notifVisible.value
+  if (notifVisible.value && !recent.value.length) {
+    loadRecent()
+  }
+}
+
+// 点击单条：仅标记已读，不跳转
+async function markOneRead(n) {
+  if (n.isRead) return
+  try {
+    await notificationApi.markRead(n.id)
+    n.isRead = true
+    notifStore.decrement()
+  } catch (e) {
+    /* 错误提示已由拦截器统一处理 */
+  }
+}
+
+// 查看全部 → 跳通知页
+function goNotifications() {
+  notifVisible.value = false
+  router.push('/notifications')
+}
 
 /* ========== 更换头像 ========== */
 const avatarDialogVisible = ref(false)
@@ -143,7 +224,7 @@ function handleAvatarError() {
   ElMessage.error('头像上传失败，请重试')
 }
 
-// 刷新页面后恢复用户信息（token 存在但 userInfo 为空时）
+// 刷新页面后恢复用户信息（token 存在但 userInfo 为空时 + 拉取未读数）
 onMounted(async () => {
   if (userStore.token && !userStore.userInfo) {
     try {
@@ -151,6 +232,9 @@ onMounted(async () => {
     } catch (e) {
       /* 401 已由拦截器统一处理 */
     }
+  }
+  if (userStore.token) {
+    notifStore.refresh()
   }
 })
 
@@ -163,10 +247,11 @@ function handleLogout() {
   })
     .then(() => {
       userStore.logout()
+      notifStore.reset()
       ElMessage.success('已退出登录，期待下次见面～')
       router.push('/login')
     })
-    .catch(() => {})
+    .catch(() => { })
 }
 </script>
 
@@ -285,5 +370,103 @@ function handleLogout() {
 .layout-main {
   padding: 24px;
   overflow-y: auto;
+}
+
+/* ========== 通知铃铛 ========== */
+.notif-bell {
+  margin-right: 8px;
+}
+
+.bell-btn {
+  border: none;
+  background: transparent;
+  color: #ec6a8f;
+}
+
+.bell-btn:hover {
+  background: rgba(236, 106, 143, 0.1);
+}
+
+.notif-popper {
+  padding: 0;
+}
+
+.notif-panel {
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.notif-panel-title {
+  font-weight: 600;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  color: #6b5260;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(236, 106, 143, 0.06);
+  transition: background 0.2s;
+}
+
+.notif-item:hover {
+  background: rgba(236, 106, 143, 0.04);
+}
+
+.notif-item.unread {
+  background: rgba(236, 106, 143, 0.08);
+  font-weight: 600;
+}
+
+.notif-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ec6a8f;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-item-title {
+  color: #2c2c2c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread .notif-item-title {
+  color: #ec6a8f;
+}
+
+.notif-item-content {
+  font-size: 13px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.notif-item-time {
+  font-size: 12px;
+  color: #aaa;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.notif-footer {
+  text-align: center;
+  padding: 6px 0;
 }
 </style>

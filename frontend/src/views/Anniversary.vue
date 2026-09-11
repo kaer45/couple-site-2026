@@ -26,18 +26,20 @@
       </el-button>
     </div>
 
-    <!-- 这里需要修改一下，使用el-tag这样的样式展示数据实在不好看 -->
-    <!-- ===== 即将到来的纪念日（最近5条） ===== -->
-    <div v-if="summary.upcoming && summary.upcoming.length" class="anni-upcoming">
+    <!-- ===== 即将到来的纪念日（竖向时间轴，跳过汇总卡已展示的那条） ===== -->
+    <div v-if="filteredUpcoming.length" class="anni-upcoming">
       <div class="section-title">即将到来</div>
-      <div class="upcoming-grid">
-        <div v-for="item in summary.upcoming" :key="item.id" class="upcoming-card">
-          <div class="upcoming-card-days">
-            {{ item.daysLeft === 0 ? '今天' : item.daysLeft }}
-            <span v-if="item.daysLeft > 0" class="upcoming-card-unit">天后</span>
+      <div class="upcoming-timeline">
+        <div v-for="item in filteredUpcoming" :key="item.id" class="timeline-item" :class="{ today: item.daysLeft === 0 }">
+          <div class="timeline-dot"></div>
+          <div class="timeline-content">
+            <div class="upcoming-card-name">{{ item.daysLeft === 0 ? '🎉 ' : '' }}{{ item.name }}</div>
+            <div class="upcoming-card-sub">
+              {{ formatMonthDay(item.date) }} ·
+              <span v-if="item.daysLeft === 0" class="sub-today">就是今天 🎉</span>
+              <span v-else>还有 {{ item.daysLeft }} 天</span>
+            </div>
           </div>
-          <div class="upcoming-card-name">{{ item.name }}</div>
-          <div class="upcoming-card-date">📅 {{ formatMonthDay(item.date) }}</div>
         </div>
       </div>
     </div>
@@ -96,7 +98,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import * as anniversaryApi from '@/api/anniversary'
@@ -104,6 +106,13 @@ import EmptyState from '@/components/EmptyState.vue'
 
 /* ========== 汇总 ========== */
 const summary = ref({ daysTogether: null, nextAnniversary: null, upcoming: [] })
+
+/* 即将到来：跳过汇总卡已展示的「下一个」那条，避免重复 */
+const filteredUpcoming = computed(() => {
+  const list = summary.value.upcoming || []
+  const skipId = summary.value.nextAnniversary?.id
+  return skipId ? list.filter((item) => item.id !== skipId) : list
+})
 
 /* ========== 列表 ========== */
 const list = ref([])
@@ -279,43 +288,59 @@ async function handleRemove(item) {
 
 
 
-.upcoming-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
+/* 即将到来：竖向时间轴（同首页时间轴风格） */
+.anni-upcoming {
+  margin-bottom: 28px;
+}
+
+.upcoming-timeline {
+  position: relative;
+  padding-left: 28px;
   margin-top: 12px;
 }
 
-.upcoming-card {
-  padding: 18px 14px;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(236, 106, 143, 0.15);
-  border-radius: 14px;
-  transition: transform 0.2s, box-shadow 0.2s;
+.upcoming-timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--el-color-primary-light-5), var(--el-color-primary-light-8));
 }
 
-.upcoming-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(236, 106, 143, 0.12);
+.upcoming-timeline .timeline-item {
+  position: relative;
+  padding: 10px 0 18px;
 }
 
-.upcoming-card-days {
-  font-size: 30px;
-  font-weight: 800;
-  color: var(--el-color-primary);
-  line-height: 1;
+.upcoming-timeline .timeline-dot {
+  position: absolute;
+  left: -26px;
+  top: 16px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--el-color-primary);
+  box-shadow: 0 0 0 4px var(--el-color-primary-light-9);
+  transition: all 0.2s;
 }
 
-.upcoming-card-unit {
-  font-size: 13px;
-  font-weight: 600;
-  margin-left: 2px;
+.upcoming-timeline .timeline-item.today .timeline-dot {
+  border-color: #f5a623;
+  box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.15);
+}
+
+.upcoming-timeline .timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .upcoming-card-name {
-  margin-top: 10px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #6b5260;
   overflow: hidden;
@@ -323,10 +348,14 @@ async function handleRemove(item) {
   white-space: nowrap;
 }
 
-.upcoming-card-date {
-  margin-top: 4px;
-  font-size: 12px;
+.upcoming-card-sub {
+  font-size: 13px;
   color: #a98d99;
+}
+
+.sub-today {
+  color: #f5a623;
+  font-weight: 600;
 }
 
 /* 列表 */

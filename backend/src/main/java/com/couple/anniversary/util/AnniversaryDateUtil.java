@@ -1,4 +1,4 @@
-package com.couple.anniversary;
+package com.couple.anniversary.util;
 
 import java.time.LocalDate;
 

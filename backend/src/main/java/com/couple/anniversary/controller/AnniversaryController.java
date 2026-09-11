@@ -1,5 +1,6 @@
-package com.couple.anniversary;
+package com.couple.anniversary.controller;
 
+import com.couple.anniversary.service.AnniversaryService;
 import com.couple.anniversary.dto.AnniversaryRequest;
 import com.couple.anniversary.dto.AnniversarySummaryVO;
 import com.couple.anniversary.entity.Anniversary;

@@ -1,4 +1,4 @@
-package com.couple.anniversary;
+package com.couple.anniversary.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.couple.anniversary.dto.AnniversaryNextVO;
@@ -6,6 +6,8 @@ import com.couple.anniversary.dto.AnniversaryRequest;
 import com.couple.anniversary.dto.AnniversarySummaryVO;
 import com.couple.anniversary.entity.Anniversary;
 import com.couple.anniversary.mapper.AnniversaryMapper;
+import com.couple.anniversary.service.AnniversaryService;
+import com.couple.anniversary.util.AnniversaryDateUtil;
 import com.couple.common.BusinessException;
 import com.couple.couple.entity.Couple;
 import com.couple.couple.mapper.CoupleMapper;
@@ -44,7 +46,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
         List<Anniversary> list = list(coupleId);
         List<AnniversaryNextVO> withDaysLeft = list.stream()
                 .map(a -> {
-                    LocalDate next = nextOccurrence(a.getDate(), LocalDate.now());
+                    LocalDate next = AnniversaryDateUtil.nextOccurrence(a.getDate(), LocalDate.now());
                     return new AnniversaryNextVO(a.getId(), a.getName(), a.getDate(),
                             ChronoUnit.DAYS.between(LocalDate.now(), next));
                 })
@@ -121,29 +123,6 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     private void requireCoupleId(Long coupleId) {
         if (coupleId == null) {
             throw new BusinessException(403, "请先绑定情侣");
-        }
-    }
-
-    /**
-     * 计算某月-日纪念日下一次到达的日期：
-     * 取今年该月-日，若已过（<= 今天）则取明年；处理 2/29 非闰年场景
-     */
-    private LocalDate nextOccurrence(LocalDate anniversaryDate, LocalDate today) {
-        LocalDate thisYear = withYearSafe(anniversaryDate, today.getYear());
-        // 如果今年纪念日还没有过（包括今天），那么直接返回
-        if (!thisYear.isBefore(today)) {
-            return thisYear;
-        }
-        return withYearSafe(anniversaryDate, today.getYear() + 1);
-    }
-
-    /** 2/29 在非闰年时退化为 2/28 */
-    private LocalDate withYearSafe(LocalDate date, int year) {
-        try {
-            // 更换年份时，可能导致这一年并没有2月29日，所以会报错，这里采用退化到2月28
-            return date.withYear(year);
-        } catch (DateTimeException e) {
-            return date.withDayOfMonth(28).withYear(year);
         }
     }
 }

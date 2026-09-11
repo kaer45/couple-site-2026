@@ -117,10 +117,46 @@ CREATE TABLE `anniversary` (
   KEY `idx_couple_id` (`couple_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='纪念日表';
 
+-- ------------------------------------------------------------
+-- 7. 提醒记录表 reminder_log
+--    防止同一天对同一个纪念日重复提醒
+--    UNIQUE(anniversary_id, remind_date) 是防重的最后一道防线
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `reminder_log`;
+CREATE TABLE `reminder_log` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `anniversary_id` BIGINT UNSIGNED NOT NULL COMMENT '纪念日ID(关联 anniversary.id)',
+  `remind_date`    DATE NOT NULL COMMENT '提醒发生的日期(不是纪念日日期)',
+  `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_anniversary_date` (`anniversary_id`, `remind_date`),
+  KEY `idx_remind_date` (`remind_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='纪念日提醒记录表(防重)';
+
+-- ------------------------------------------------------------
+-- 8. 通知表 notification（站内信）
+--    定时任务发现需要提醒时插入记录，用户登录后查看
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `notification`;
+CREATE TABLE `notification` (
+  `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '通知ID',
+  `user_id`    BIGINT UNSIGNED NOT NULL COMMENT '接收人用户ID(关联 user.id)',
+  `couple_id`  BIGINT UNSIGNED DEFAULT NULL COMMENT '所属情侣关系ID(关联 couple.id)',
+  `type`       VARCHAR(32) NOT NULL COMMENT '通知类型,如 ANNIVERSARY_REMIND',
+  `title`      VARCHAR(64) DEFAULT NULL COMMENT '标题',
+  `content`    VARCHAR(255) DEFAULT NULL COMMENT '内容',
+  `related_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联业务ID(如纪念日ID)',
+  `is_read`    TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已读(0=未读,1=已读)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_read_created` (`user_id`, `is_read`, `created_at` DESC),
+  KEY `idx_couple_id` (`couple_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站内通知表';
+
 -- ============================================================
 -- 以下为扩展功能预留表（后续迭代再启用，可先不建）
 -- ============================================================
--- -- 8. 情侣任务打卡 task / task_record
+-- -- 9. 情侣任务打卡 task / task_record
 -- CREATE TABLE `task` (
 --   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `couple_id`   BIGINT UNSIGNED NOT NULL,
@@ -142,7 +178,7 @@ CREATE TABLE `anniversary` (
 --   UNIQUE KEY `uk_task_user_date` (`task_id`, `user_id`, `completed_date`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务打卡记录表';
 --
--- -- 9. 积分记录 point_record（积分商城预留）
+-- -- 10. 积分记录 point_record（积分商城预留）
 -- CREATE TABLE `point_record` (
 --   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `user_id`    BIGINT UNSIGNED NOT NULL,
@@ -152,7 +188,7 @@ CREATE TABLE `anniversary` (
 --   PRIMARY KEY (`id`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分变动记录表';
 --
--- -- 10. 实时聊天 chat_message（WebSocket 预留）
+-- -- 11. 实时聊天 chat_message（WebSocket 预留）
 -- CREATE TABLE `chat_message` (
 --   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `couple_id`  BIGINT UNSIGNED NOT NULL,

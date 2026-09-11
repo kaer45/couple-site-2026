@@ -1,4 +1,4 @@
-package com.couple.anniversary;
+package com.couple.anniversary.service;
 
 import com.couple.anniversary.dto.AnniversaryRequest;
 import com.couple.anniversary.dto.AnniversarySummaryVO;

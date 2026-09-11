@@ -55,6 +55,12 @@ const routes = [
         name: 'album-detail',
         component: () => import('@/views/AlbumDetail.vue'),
         meta: { title: '相册详情', requiresAuth: true }
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/views/Notification.vue'),
+        meta: { title: '通知', requiresAuth: true }
       }
     ]
   },
