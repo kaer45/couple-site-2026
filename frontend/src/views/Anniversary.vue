@@ -61,7 +61,10 @@
               在一起
             </el-tag>
           </div>
-          <div class="anni-item-date">📅 {{ item.date }}</div>
+          <div class="anni-item-date">
+            <el-icon class="anni-date-icon"><Calendar /></el-icon>
+            <span>{{ item.date }}</span>
+          </div>
         </div>
         <div class="anni-item-days" :class="{ today: daysLeft(item) === 0 }">
           {{ daysText(item) }}
@@ -383,7 +386,15 @@ async function handleRemove(item) {
 }
 
 .anni-item-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 4px;
+  font-size: 13px;
+  color: #a98d99;
+}
+
+.anni-date-icon {
   font-size: 13px;
   color: #a98d99;
 }

@@ -67,43 +67,40 @@
       <el-button :loading="loading" round @click="loadMore">加载更多</el-button>
     </div>
 
-    <!-- ===== 日期快速跳转栏：支持点击跳转 + 按住滑动定位（类似手机相册） ===== -->
-    <transition name="fade">
-      <div v-if="railVisible" class="date-rail">
-        <div class="date-rail-header">
-          <span>📅 按日期</span>
-          <el-icon class="rail-close" @click="railVisible = false"><Close /></el-icon>
-        </div>
-        <div
-          ref="railListRef"
-          class="date-rail-list"
-          @pointerdown="onRailPointerDown"
-          @pointermove="onRailPointerMove"
-          @pointerup="onRailPointerUp"
-          @pointercancel="onRailPointerUp"
-        >
-          <template v-for="g in railGroups" :key="g.month">
-            <div class="rail-month" :data-date="g.dates[0]" @click="jumpToDate(g.dates[0])">
-              {{ g.month.slice(0, 4) }}年{{ Number(g.month.slice(5)) }}月
-            </div>
-            <div
-              v-for="d in g.dates"
-              :key="d"
-              class="date-rail-item"
-              :class="{ active: d === activeDate }"
-              :data-date="d"
-              :title="formatGroupDate(d)"
-              @click="jumpToDate(d)"
-            >
-              {{ railLabel(d) }}
-            </div>
-          </template>
-        </div>
+    <!-- ===== 日期快速跳转栏：常驻，支持点击跳转 + 按住滑动定位（类似手机相册） ===== -->
+    <div class="date-rail">
+      <div class="date-rail-header">
+        <el-icon class="rail-calendar"><Calendar /></el-icon>
+        <span>按日期</span>
       </div>
-    </transition>
+      <div
+        ref="railListRef"
+        class="date-rail-list"
+        @pointerdown="onRailPointerDown"
+        @pointermove="onRailPointerMove"
+        @pointerup="onRailPointerUp"
+        @pointercancel="onRailPointerUp"
+      >
+        <template v-for="g in railGroups" :key="g.month">
+          <div class="rail-month" :data-date="g.dates[0]" @click="jumpToDate(g.dates[0])">
+            {{ g.month.slice(0, 4) }}年{{ Number(g.month.slice(5)) }}月
+          </div>
+          <div
+            v-for="d in g.dates"
+            :key="d"
+            class="date-rail-item"
+            :class="{ active: d === activeDate }"
+            :data-date="d"
+            :title="formatGroupDate(d)"
+            @click="jumpToDate(d)"
+          >
+            {{ railLabel(d) }}
+          </div>
+        </template>
+      </div>
+    </div>
     <!-- 滑动时的日期预览浮标 -->
     <div v-if="sliding && slidePreview" class="rail-preview">{{ formatGroupDate(slidePreview) }}</div>
-    <el-button v-if="!railVisible" class="rail-toggle" circle @click="railVisible = true">📅</el-button>
   </div>
 
   <!-- ===== 发布动态弹窗 ===== -->
@@ -289,7 +286,6 @@ watch(
 
 /* ========== 跳转栏数据与滑动定位 ========== */
 const railDates = ref([])
-const railVisible = ref(true)
 const railListRef = ref()
 
 // 跳转栏按 年月 分组（组内日期倒序），今天/昨天 直接显示文字
@@ -687,17 +683,17 @@ async function handlePublish() {
 .date-rail-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 4px;
   padding: 10px 12px 6px;
   font-size: 13px;
   font-weight: 700;
   color: #6b5260;
 }
 
-.rail-close {
-  cursor: pointer;
-  color: #a98d99;
-  font-size: 14px;
+.rail-calendar {
+  font-size: 15px;
+  color: var(--el-color-primary);
 }
 
 .date-rail-list {
@@ -759,26 +755,6 @@ async function handlePublish() {
   border-radius: 12px;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.rail-toggle {
-  position: fixed;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 20;
-  font-size: 16px;
-}
-
-/* 跳转栏淡入淡出 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 
 /* 小屏适配 */

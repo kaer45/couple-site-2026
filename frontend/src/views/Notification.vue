@@ -20,7 +20,7 @@
     </template>
 
     <!-- 空态 -->
-    <EmptyState v-else-if="!list.length" description="还没有通知" icon="🔔" />
+    <EmptyState v-else-if="!list.length" description="还没有通知" icon="🔔" icon-component="Bell" />
 
     <!-- 列表 -->
     <div v-else class="notif-list">

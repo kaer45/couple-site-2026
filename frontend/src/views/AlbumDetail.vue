@@ -8,7 +8,7 @@
     <!-- 相册信息 -->
     <div class="detail-header">
       <div>
-        <div class="detail-name">📷 {{ album.name || '加载中…' }}</div>
+        <div class="detail-name"><el-icon class="title-icon"><Camera /></el-icon>{{ album.name || '加载中…' }}</div>
         <div class="detail-desc">{{ album.description || '这个相册还没有描述' }}</div>
       </div>
       <div class="detail-actions">
@@ -52,6 +52,7 @@
       v-else-if="!album.photos || !album.photos.length"
       description="相册还是空的，上传第一张照片吧"
       icon="🖼️"
+      icon-component="Picture"
     >
       <el-button type="primary" round @click="triggerUpload">上传照片</el-button>
     </EmptyState>
@@ -80,7 +81,7 @@
               </el-button>
             </div>
             <div class="photo-caption">
-              <div class="photo-desc">{{ photo.description || '📷' }}</div>
+              <div class="photo-desc"><el-icon v-if="!photo.description" class="photo-desc-icon"><Camera /></el-icon>{{ photo.description }}</div>
               <div class="photo-meta">
                 {{ photo.uploaderNickname }} · {{ dayjs(photo.createdAt).format('YYYY-MM-DD') }}
               </div>
@@ -330,6 +331,12 @@ async function handleRemovePhoto(photo) {
   color: #6b5260;
 }
 
+.title-icon {
+  vertical-align: -3px;
+  margin-right: 6px;
+  color: var(--el-color-primary);
+}
+
 .detail-desc {
   margin-top: 6px;
   font-size: 13px;
@@ -428,6 +435,12 @@ async function handleRemovePhoto(photo) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.photo-desc-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: #a98d99;
 }
 
 .photo-meta {

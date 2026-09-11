@@ -2,7 +2,7 @@
   <div class="page album">
     <!-- 顶部操作栏 -->
     <div class="album-toolbar">
-      <div class="section-title album-title">📷 我们的相册</div>
+      <div class="section-title album-title"><el-icon class="title-icon"><Camera /></el-icon>我们的相册</div>
       <el-button type="primary" round @click="dialogVisible = true">
         <el-icon><FolderAdd /></el-icon>&nbsp;新建相册
       </el-button>
@@ -12,7 +12,7 @@
     <template v-if="loading">
       <el-skeleton :rows="4" animated />
     </template>
-    <EmptyState v-else-if="!list.length" description="还没有相册，创建第一个吧" icon="📸">
+    <EmptyState v-else-if="!list.length" description="还没有相册，创建第一个吧" icon="📸" icon-component="Camera">
       <el-button type="primary" round @click="dialogVisible = true">新建相册</el-button>
     </EmptyState>
     <div v-else class="album-grid">
@@ -153,6 +153,12 @@ async function handleRemove(album) {
 
 .album-title {
   margin: 0;
+}
+
+.title-icon {
+  vertical-align: -2px;
+  margin-right: 6px;
+  color: var(--el-color-primary);
 }
 
 .album-grid {

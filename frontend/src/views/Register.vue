@@ -34,7 +34,8 @@
                :close-on-click-modal="false" align-center>
       <p class="code-tip">这是你的专属情侣码，快发给 Ta，让 Ta 绑定你吧～</p>
       <div class="code-warning">
-        ⚠️ 情侣码<b>仅展示这一次</b>：请立即复制并妥善保存，关闭本弹窗后将<b>无法再次查看</b>，
+        <el-icon class="code-warning-icon"><WarningFilled /></el-icon>
+        情侣码<b>仅展示这一次</b>：请立即复制并妥善保存，关闭本弹窗后将<b>无法再次查看</b>，
         绑定必须凭此码，若丢失只能重新注册新账号。
       </div>
       <div class="couple-code" title="点击复制" @click="copyCode">
@@ -150,6 +151,9 @@ async function copyCode() {
 
 /* 仅展示一次的醒目警告 */
 .code-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0 0 16px;
   padding: 10px 14px;
   font-size: 13px;
@@ -159,6 +163,12 @@ async function copyCode() {
   background: #fef3c7;
   border: 1px solid #fcd34d;
   border-radius: 10px;
+}
+
+.code-warning-icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: #b45309;
 }
 
 /* 情侣码大字展示 */

@@ -37,7 +37,7 @@
     </div>
 
     <!-- 地点 -->
-    <div v-if="moment.location" class="moment-location">📍 {{ moment.location }}</div>
+    <div v-if="moment.location" class="moment-location"><el-icon class="moment-loc-icon"><Location /></el-icon>{{ moment.location }}</div>
   </div>
 </template>
 
@@ -154,6 +154,12 @@ async function handleDelete() {
 .moment-location {
   margin-top: 10px;
   font-size: 13px;
+  color: #8a7380;
+}
+
+.moment-loc-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
   color: #8a7380;
 }
 </style>

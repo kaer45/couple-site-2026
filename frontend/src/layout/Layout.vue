@@ -66,7 +66,7 @@
                   <span class="notif-item-time">{{ dayjs(n.createdAt).fromNow() }}</span>
                 </div>
               </template>
-              <EmptyState v-else description="暂无通知" icon="🔔" />
+              <EmptyState v-else description="暂无通知" icon="🔔" icon-component="Bell" />
               <div class="notif-footer">
                 <el-button link type="primary" @click="goNotifications">查看全部</el-button>
               </div>
