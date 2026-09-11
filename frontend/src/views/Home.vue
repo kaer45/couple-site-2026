@@ -32,20 +32,18 @@
       </el-button>
     </div>
 
-    <!-- ===== 时间轴（虚拟滚动：只渲染可视区附近的分组） ===== -->
+    <!-- ===== 时间轴（全量渲染，分页加载数据量小，无需虚拟滚动） ===== -->
     <template v-if="loading && !moments.length">
       <el-skeleton :rows="4" animated class="skeleton" />
     </template>
 
-    <div v-else-if="moments.length" ref="timelineRef" class="timeline" :style="{ height: totalHeight + 'px' }">
+    <div v-else-if="moments.length" ref="timelineRef" class="timeline">
       <div
-        v-for="g in visibleGroups"
+        v-for="g in dateGroups"
         :key="g.date"
         :id="'date-' + g.date"
         :data-date="g.date"
         class="date-group"
-        :style="{ top: g.offset + 'px' }"
-        :ref="(el) => measureGroup(g.date, el)"
       >
         <div class="date-header">
           <span class="date-badge">{{ formatGroupDate(g.date) }}</span>
@@ -185,70 +183,9 @@ const dateGroups = computed(() => {
   return [...map.values()]
 })
 
-/* ========== 虚拟滚动（组级 windowed rendering） ========== */
-// 滚动容器是布局里的 .layout-main（整个页面滚动）
+/* ========== 滚动容器（用于日期跳转定位） ========== */
 let scrollContainer = null
 const timelineRef = ref(null)
-const groupHeights = reactive({}) // date -> 已测量分组高度(px)
-const DEFAULT_GROUP_HEIGHT = 240 // 未测量分组的估算高度
-const OVERSCAN_PX = 600 // 视口上下各多渲染的像素
-
-const viewStart = ref(0)
-const viewHeight = ref(0)
-
-// 分组偏移表：offset = 前面所有分组高度之和
-const measuredGroups = computed(() => {
-  let acc = 0
-  return dateGroups.value.map((g) => {
-    const height = groupHeights[g.date] || DEFAULT_GROUP_HEIGHT
-    const item = { ...g, offset: acc, height }
-    acc += height
-    return item
-  })
-})
-
-// 时间轴总高度（撑起滚动条）
-const totalHeight = computed(() => {
-  const items = measuredGroups.value
-  return items.length ? items[items.length - 1].offset + items[items.length - 1].height : 0
-})
-
-// 可视范围内的分组（含上下 overscan）
-const visibleGroups = computed(() => {
-  const items = measuredGroups.value
-  if (!items.length) return []
-  const start = Math.max(0, viewStart.value - OVERSCAN_PX)
-  const end = viewStart.value + viewHeight.value + OVERSCAN_PX
-  // 二分定位 start 所在的组
-  let lo = 0
-  let hi = items.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (items[mid].offset + items[mid].height < start) lo = mid + 1
-    else hi = mid
-  }
-  const begin = lo
-  let endIdx = begin
-  while (endIdx < items.length && items[endIdx].offset < end) endIdx++
-  return items.slice(begin, endIdx + 1)
-})
-
-// 分组渲染后测量高度（含 padding-bottom 间隙），供偏移计算使用
-function measureGroup(date, el) {
-  if (el && el.offsetHeight > 0 && groupHeights[date] !== el.offsetHeight) {
-    groupHeights[date] = el.offsetHeight
-  }
-}
-
-// 滚动容器滚动/窗口尺寸变化时更新可视窗口
-function handleScroll() {
-  if (!scrollContainer || !timelineRef.value) return
-  const cRect = scrollContainer.getBoundingClientRect()
-  const tlRect = timelineRef.value.getBoundingClientRect()
-  // 时间轴内部滚动偏移 = 容器 scrollTop + 时间轴相对容器顶部的距离（<0 时截断）
-  viewStart.value = Math.max(0, scrollContainer.scrollTop + cRect.top - tlRect.top)
-  viewHeight.value = scrollContainer.clientHeight
-}
 
 /* ========== activeDate 跟随滚动高亮 ========== */
 const activeDate = ref('')
@@ -271,12 +208,11 @@ function setupDateObserver() {
   document.querySelectorAll('.date-group').forEach((el) => dateObserver.observe(el))
 }
 
-// 分组或可视范围变化后：重建观察 + 刷新窗口
+// 分组变化后：重建观察
 watch(
-  [dateGroups, visibleGroups],
+  dateGroups,
   () => {
     setupDateObserver()
-    handleScroll()
     if (!dateGroups.value.some((g) => g.date === activeDate.value)) {
       activeDate.value = dateGroups.value[0]?.date || ''
     }
@@ -371,22 +307,11 @@ async function jumpToDate(date) {
   scrollToDate(date)
 }
 
-// 滚动到指定日期分组（瞬时定位；目标渲染并测量后再微调一次，消除估算误差）
+// 滚动到指定日期分组（基于 DOM 元素定位，全量渲染后直接 scrollIntoView）
 function scrollToDate(date) {
-  const item = measuredGroups.value.find((g) => g.date === date)
-  if (!item || !scrollContainer || !timelineRef.value) return
-  const tlTop = timelineRef.value.getBoundingClientRect().top
-    - scrollContainer.getBoundingClientRect().top
-    + scrollContainer.scrollTop
-  scrollContainer.scrollTo({ top: tlTop + item.offset, behavior: 'auto' })
-  nextTick(() => {
-    const it = measuredGroups.value.find((g) => g.date === date)
-    if (!it || !scrollContainer || !timelineRef.value) return
-    const t2 = timelineRef.value.getBoundingClientRect().top
-      - scrollContainer.getBoundingClientRect().top
-      + scrollContainer.scrollTop
-    scrollContainer.scrollTo({ top: t2 + it.offset, behavior: 'auto' })
-  })
+  const el = document.getElementById('date-' + date)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'auto', block: 'start' })
 }
 
 /* ========== 发布弹窗 ========== */
@@ -405,16 +330,11 @@ const publishForm = reactive({
 onMounted(async () => {
   // 滚动容器 = 布局中的主内容区（整个页面滚动）
   scrollContainer = document.querySelector('.layout-main')
-  scrollContainer?.addEventListener('scroll', handleScroll, { passive: true })
-  window.addEventListener('resize', handleScroll)
   // 并行加载：汇总数据 + 第一页动态 + 日期跳转栏
   await Promise.all([fetchSummary(), fetchMoments(true), loadDateRail()])
-  handleScroll()
 })
 
 onUnmounted(() => {
-  scrollContainer?.removeEventListener('scroll', handleScroll)
-  window.removeEventListener('resize', handleScroll)
   dateObserver?.disconnect()
 })
 
@@ -460,17 +380,10 @@ function loadMore() {
   fetchMoments(false)
 }
 
-// 删除动态后从本地列表移除；分组空了则清掉其高度缓存
+// 删除动态后从本地列表移除
 function handleMomentDeleted(id) {
-  const removed = moments.value.find((m) => m.id === id)
   moments.value = moments.value.filter((m) => m.id !== id)
   total.value -= 1
-  if (removed) {
-    const d = (removed.createdAt || '').slice(0, 10)
-    if (!moments.value.some((m) => (m.createdAt || '').slice(0, 10) === d)) {
-      delete groupHeights[d]
-    }
-  }
 }
 
 /* ========== 发布动态 ========== */
@@ -611,11 +524,8 @@ async function handlePublish() {
   background: linear-gradient(180deg, var(--el-color-primary-light-5), var(--el-color-primary-light-8));
 }
 
-/* 虚拟滚动的分组：绝对定位 + 左缩进 + 底部间隙（间隙计入测量高度） */
+/* 日期分组：左缩进 + 底部间隙 */
 .date-group {
-  position: absolute;
-  left: 0;
-  right: 0;
   padding-left: 28px;
   padding-bottom: 10px;
 }
