@@ -12,6 +12,7 @@ npm-debug.log*
 # ===== 运行时数据（MySQL 数据、上传文件，勿提交） =====
 data/
 .m2-repo/
+backend/uploads/
 
 # ===== 环境变量（含数据库密码、JWT 密钥，切勿提交） =====
 .env
