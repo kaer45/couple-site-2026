@@ -198,3 +198,24 @@ CREATE TABLE `notification` (
 --   PRIMARY KEY (`id`),
 --   KEY `idx_couple_created` (`couple_id`, `created_at`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天消息表';
+
+
+-- ------------------------------------------------------------
+-- 12. 个人待办表 user_todo（每日待办）
+--    纯个人数据，按 user_id 硬隔离，对方不可见
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `user_todo`;
+CREATE TABLE `user_todo` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '待办ID',
+  `user_id`      BIGINT UNSIGNED NOT NULL COMMENT '所属用户ID(关联 user.id，仅从 JWT 取，前端禁止传)',
+  `title`        VARCHAR(200) NOT NULL COMMENT '待办内容',
+  `done`         TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否完成(0=未完成,1=已完成)',
+  `priority`     TINYINT(1) NOT NULL DEFAULT 0 COMMENT '优先级(0=普通,1=重要)',
+  `due_date`     DATE DEFAULT NULL COMMENT '归属日期(空=未排期)',
+  `completed_at` DATETIME DEFAULT NULL COMMENT '完成时间',
+  `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_date` (`user_id`, `due_date`),
+  KEY `idx_user_done` (`user_id`, `done`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人待办表';

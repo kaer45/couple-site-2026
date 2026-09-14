@@ -25,6 +25,12 @@
           </el-icon>
           <span>相册</span>
         </el-menu-item>
+        <el-menu-item index="/todos">
+          <el-icon>
+            <List />
+          </el-icon>
+          <span>每日待办</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

@@ -57,6 +57,12 @@ const routes = [
         meta: { title: '相册详情', requiresAuth: true }
       },
       {
+        path: 'todos',
+        name: 'todos',
+        component: () => import('@/views/Todo.vue'),
+        meta: { title: '每日待办', requiresAuth: true }
+      },
+      {
         path: 'notifications',
         name: 'notifications',
         component: () => import('@/views/Notification.vue'),
