@@ -39,50 +39,35 @@
     <EmptyState v-else-if="!hasAny" description="今天的待办是空的，添加第一条吧" icon="📝" icon-component="EditPen" />
 
     <template v-else>
-      <!-- 分组渲染（过期 / 今天 / 未来） -->
+      <!-- 分组渲染：Today → Upcoming → Completed → Overdue，全部可折叠 -->
       <section v-for="g in groups" :key="g.key" v-show="g.list.length" class="todo-group">
-        <div class="group-header" :class="g.cls">
+        <div
+          class="group-header"
+          :class="g.cls"
+          @click="showGroup[g.key] = !showGroup[g.key]"
+        >
+          <el-icon class="collapse-icon" :class="{ collapsed: !showGroup[g.key] }"><ArrowDown /></el-icon>
           {{ g.label }}
           <span class="group-count">{{ g.list.length }}</span>
         </div>
-        <TransitionGroup name="todo-list" tag="ul" class="todo-list">
-          <li v-for="t in g.list" :key="t.id" class="todo-item warm-card">
-            <button class="todo-circle" :class="{ done: t.done }" @click="toggleDone(t)">
+        <TransitionGroup v-show="showGroup[g.key]" name="todo-list" tag="ul" class="todo-list">
+          <li v-for="t in g.list" :key="t.id" class="todo-item warm-card" :class="{ dimmed: t.done }">
+            <button class="todo-circle" :class="{ done: t.done }" :disabled="t.done" @click="toggleDone(t)">
               <el-icon v-if="t.done" :size="14"><Check /></el-icon>
             </button>
             <div class="todo-body">
-              <div class="todo-title" :class="{ done: t.done, overdue: t.overdue }">{{ t.title }}</div>
+              <div class="todo-title" :class="{ done: t.done, overdue: t.overdue && !t.done }">{{ t.title }}</div>
               <div class="todo-meta">
                 <span v-if="t.priority" class="todo-tag flag">重要</span>
                 <span class="todo-tag">{{ dueText(t) }}</span>
               </div>
             </div>
-            <el-button class="icon-btn star" text :class="{ active: t.priority }" @click="togglePriority(t)">
+            <el-button v-if="!t.done" class="icon-btn star" text :class="{ active: t.priority }" @click="togglePriority(t)">
               <el-icon :size="16"><StarFilled /></el-icon>
             </el-button>
-            <el-button class="icon-btn del" text @click="handleDelete(t)">
+            <el-button v-if="!t.done" class="icon-btn del" text @click="handleDelete(t)">
               <el-icon :size="16"><Delete /></el-icon>
             </el-button>
-          </li>
-        </TransitionGroup>
-      </section>
-
-      <!-- 今天已完成（可折叠） -->
-      <section v-if="view.completed.length" class="todo-group">
-        <div class="group-header completed" @click="showCompleted = !showCompleted">
-          <el-icon class="collapse-icon" :class="{ collapsed: !showCompleted }"><ArrowDown /></el-icon>
-          今天已完成
-          <span class="group-count">{{ view.completed.length }}</span>
-        </div>
-        <TransitionGroup v-show="showCompleted" name="todo-list" tag="ul" class="todo-list">
-          <li v-for="t in view.completed" :key="t.id" class="todo-item warm-card dimmed">
-            <button class="todo-circle done" disabled>
-              <el-icon :size="14"><Check /></el-icon>
-            </button>
-            <div class="todo-body">
-              <div class="todo-title done">{{ t.title }}</div>
-              <div class="todo-meta"><span class="todo-tag">完成了 {{ dayjs(t.completedAt).format('HH:mm') }}</span></div>
-            </div>
           </li>
         </TransitionGroup>
       </section>
@@ -91,7 +76,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import * as todoApi from '@/api/todo'
@@ -107,18 +92,25 @@ const newDueDate = ref(dayjs().format('YYYY-MM-DD'))
 
 const todayText = dayjs().format('YYYY年M月D日 dddd')
 
-/* 分组配置（顺序即展示顺序） */
+/* 各分组折叠状态（默认展开，点组头收起/展开） */
+const showGroup = reactive({
+  today: true,
+  upcoming: true,
+  completed: true,
+  overdue: true
+})
+
+/* 分组配置（顺序即展示顺序）：Today → Upcoming → Completed → Overdue */
 const groups = computed(() => [
-  { key: 'overdue', label: '过期未完成', list: view.value.overdue, cls: 'overdue' },
-  { key: 'today', label: '今天', list: view.value.today, cls: 'today' },
-  { key: 'upcoming', label: '未来排期', list: view.value.upcoming, cls: 'upcoming' }
+  { key: 'today', label: 'Today', list: view.value.today, cls: 'today' },
+  { key: 'upcoming', label: 'Upcoming', list: view.value.upcoming, cls: 'upcoming' },
+  { key: 'completed', label: 'Completed', list: view.value.completed, cls: 'completed' },
+  { key: 'overdue', label: 'Overdue', list: view.value.overdue, cls: 'overdue' }
 ])
 
 const hasAny = computed(() =>
   view.value.overdue.length || view.value.today.length || view.value.upcoming.length || view.value.completed.length
 )
-
-const showCompleted = ref(true)
 
 onMounted(fetchTodayView)
 
@@ -193,8 +185,9 @@ async function handleDelete(t) {
   }
 }
 
-/* 日期文案：未排期 / 今天 / 明天 / M月D日 */
+/* 日期文案：已完成带年月日；未完成显示 未排期 / 今天 / 明天 / M月D日 */
 function dueText(t) {
+  if (t.completedAt) return `完成于 ${dayjs(t.completedAt).format('YYYY年M月D日 HH:mm')}`
   if (!t.dueDate) return '未排期'
   if (t.dueDate === dayjs().format('YYYY-MM-DD')) return '今天'
   if (t.dueDate === dayjs().add(1, 'day').format('YYYY-MM-DD')) return '明天'
@@ -259,6 +252,12 @@ function dueText(t) {
   font-weight: 600;
   color: #6b5260;
   padding: 14px 4px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-header:hover {
+  color: var(--el-color-primary);
 }
 
 .group-header.today {
@@ -267,11 +266,6 @@ function dueText(t) {
 
 .group-header.overdue {
   color: #e6435d;
-}
-
-.group-header.completed {
-  cursor: pointer;
-  user-select: none;
 }
 
 .group-count {

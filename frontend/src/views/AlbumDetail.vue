@@ -12,31 +12,44 @@
         <div class="detail-desc">{{ album.description || '这个相册还没有描述' }}</div>
       </div>
       <div class="detail-actions">
-        <!-- 上传照片（触发 el-upload 选择文件，自动上传到 /api/files/upload） -->
+        <!-- 上传照片/视频（触发 el-upload 选择文件，自动上传到 /api/files/upload） -->
         <el-upload
           ref="uploadRef"
           :action="uploadAction"
           :headers="uploadHeaders"
           multiple
-          accept="image/*"
+          accept="image/*,video/*"
           :show-file-list="false"
           :on-success="handleUploadSuccess"
           :on-error="handleUploadError"
           :before-upload="beforeUpload"
         >
           <el-button type="primary" round>
-            <el-icon><UploadFilled /></el-icon>&nbsp;上传照片
+            <el-icon><UploadFilled /></el-icon>&nbsp;上传照片/视频
           </el-button>
         </el-upload>
+        <!-- 设置封面：从相册选一张图，或上传新图片 -->
+        <el-dropdown trigger="click" @command="handleCoverCommand">
+          <el-button round>
+            <el-icon><PictureFilled /></el-icon>&nbsp;设置封面
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="pick" :disabled="!imagePhotos.length">从相册选择</el-dropdown-item>
+              <el-dropdown-item command="upload">上传新图片</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
-    <!-- 待保存照片的临时操作条 -->
+    <!-- 待保存媒体的临时操作条 -->
     <div v-if="pendingUrls.length" class="pending-bar warm-card">
-      <span class="pending-text">已选择 <b>{{ pendingUrls.length }}</b> 张照片</span>
+      <span class="pending-text">已选择 <b>{{ pendingUrls.length }}</b> 个文件</span>
       <el-input
         v-model="pendingDescription"
-        placeholder="给这批照片写点描述（选填）"
+        placeholder="给这批照片/视频写点描述（选填）"
         class="pending-desc-input"
         clearable
       />
@@ -50,21 +63,26 @@
     </template>
     <EmptyState
       v-else-if="!album.photos || !album.photos.length"
-      description="相册还是空的，上传第一张照片吧"
+      description="相册还是空的，上传第一张照片或视频吧"
       icon="🖼️"
       icon-component="Picture"
     >
-      <el-button type="primary" round @click="triggerUpload">上传照片</el-button>
+      <el-button type="primary" round @click="triggerUpload">上传照片/视频</el-button>
     </EmptyState>
     <div v-else class="photo-months">
       <div v-for="group in monthGroups" :key="group.month" class="photo-month">
         <div class="month-header">
           <span class="month-badge">{{ formatMonth(group.month) }}</span>
-          <span class="month-count">{{ group.photos.length }} 张</span>
+          <span class="month-count">{{ group.photos.length }} 个</span>
         </div>
         <div class="photo-grid">
           <div v-for="photo in group.photos" :key="photo.id" class="photo-item warm-card" @click="openViewer(photo)">
-            <el-image :src="photo.url" fit="cover" class="photo-img" lazy />
+            <template v-if="photo.type === 'VIDEO'">
+              <!-- 视频缩略：preload=metadata 只取首帧，不拉全量数据 -->
+              <video :src="photo.url" muted preload="metadata" playsinline class="photo-img" />
+              <div class="video-badge"><el-icon><VideoPlay /></el-icon></div>
+            </template>
+            <el-image v-else :src="photo.url" fit="cover" class="photo-img" lazy />
             <!-- hover 遮罩：查看大图 +（自己上传的）删除 -->
             <div class="photo-mask">
               <el-button circle size="small" type="primary" plain @click.stop="openViewer(photo)">
@@ -91,6 +109,38 @@
       </div>
     </div>
 
+    <!-- ===== 选择封面图片弹窗（仅图片可作为封面） ===== -->
+    <el-dialog v-model="coverVisible" title="选择封面图片" width="min(92vw, 720px)" align-center>
+      <div class="cover-grid">
+        <div
+          v-for="photo in imagePhotos"
+          :key="photo.id"
+          class="cover-item"
+          :class="{ 'is-active': photo.url === album.coverUrl }"
+          @click="pickCover(photo)"
+        >
+          <el-image :src="photo.url" fit="cover" lazy />
+          <el-icon v-if="photo.url === album.coverUrl" class="cover-check"><Check /></el-icon>
+        </div>
+      </div>
+      <template #footer>
+        <el-button round @click="coverVisible = false">取消</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 隐藏的上传控件：上传新封面图 -->
+    <el-upload
+      ref="coverUploadRef"
+      :action="uploadAction"
+      :headers="uploadHeaders"
+      accept="image/*"
+      :show-file-list="false"
+      :on-success="handleCoverUploadSuccess"
+      :on-error="handleUploadError"
+      :before-upload="beforeCoverUpload"
+      class="cover-upload-hidden"
+    />
+
     <!-- ===== 幻灯片查看器（点击照片打开，支持 ←/→ 键切换、下载、删除） ===== -->
     <el-dialog v-model="viewerVisible" width="min(92vw, 960px)" top="4vh" align-center class="viewer-dialog" destroy-on-close>
       <div class="viewer-wrap">
@@ -99,7 +149,9 @@
           <el-button class="viewer-nav prev" circle @click="viewerPrev" :disabled="allPhotos.length <= 1">
             <el-icon><ArrowLeft /></el-icon>
           </el-button>
-          <el-image v-if="viewerPhoto" :src="viewerPhoto.url" fit="contain" class="viewer-img" />
+          <!-- 不带 autoplay：浏览器会拦截带声音的自动播放（画面动声音被吞），用户主动点播放才有声音 -->
+          <video v-if="viewerPhoto?.type === 'VIDEO'" :src="viewerPhoto.url" controls playsinline class="viewer-img" />
+          <el-image v-else-if="viewerPhoto" :src="viewerPhoto.url" fit="contain" class="viewer-img" />
           <el-button class="viewer-nav next" circle @click="viewerNext" :disabled="allPhotos.length <= 1">
             <el-icon><ArrowRight /></el-icon>
           </el-button>
@@ -110,7 +162,7 @@
             {{ viewerPhoto.uploaderNickname }} · {{ dayjs(viewerPhoto.createdAt).format('YYYY-MM-DD HH:mm') }}
           </div>
           <div class="viewer-actions">
-            <el-button link @click="downloadViewerPhoto">⬇ 下载原图</el-button>
+            <el-button link @click="downloadViewerPhoto">⬇ {{ viewerPhoto.type === 'VIDEO' ? '下载视频' : '下载原图' }}</el-button>
             <el-button
               v-if="viewerPhoto.userId === userStore.userInfo?.id"
               link
@@ -147,13 +199,21 @@ const uploadRef = ref()
 const uploadAction = '/api/files/upload'
 const uploadHeaders = computed(() => ({ Authorization: `Bearer ${userStore.token}` }))
 const pendingUrls = ref([]) // 已上传成功、待保存到相册的 url
+const pendingTypes = ref([]) // 与 pendingUrls 一一对应的媒体类型（IMAGE/VIDEO）
 const pendingDescription = ref('')
 const saving = ref(false)
+
+/* 封面相关 */
+const coverVisible = ref(false)
+const coverUploadRef = ref()
 
 onMounted(fetchDetail)
 
 /* ========== 月份分组（按 createdAt 的 yyyy-MM） ========== */
 const allPhotos = computed(() => album.value.photos || [])
+
+// 可作封面的图片（视频不能当封面）
+const imagePhotos = computed(() => allPhotos.value.filter((p) => p.type !== 'VIDEO'))
 
 const monthGroups = computed(() => {
   const map = new Map()
@@ -234,32 +294,36 @@ async function fetchDetail() {
   }
 }
 
-// 选择文件前校验：仅图片且 ≤ 10MB（契约 §5.1）
+// 选择文件前校验：图片 ≤ 10MB，视频 ≤ 200MB（对应后端 multipart 上限）
 function beforeUpload(file) {
   const isImage = file.type.startsWith('image/')
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isImage) {
-    ElMessage.warning('只能上传图片文件')
+  const isVideo = file.type.startsWith('video/')
+  if (!isImage && !isVideo) {
+    ElMessage.warning('只能上传图片或视频文件')
     return false
   }
-  if (!isLt10M) {
-    ElMessage.warning('单张图片不能超过 10MB')
+  const maxMB = isVideo ? 200 : 10
+  const maxSize = maxMB * 1024 * 1024
+  if (file.size > maxSize) {
+    ElMessage.warning(isVideo ? '单个视频不能超过 200MB' : '单张图片不能超过 10MB')
     return false
   }
   return true
 }
 
-// 上传成功：收集 url 到待保存列表
-function handleUploadSuccess(response) {
+// 上传成功：收集 url 与类型到待保存列表（类型从上传文件推断，缺省按 IMAGE）
+function handleUploadSuccess(response, uploadFile) {
   if (response && response.code === 0) {
     pendingUrls.value.push(response.data.url)
+    const type = uploadFile?.raw?.type?.startsWith('video/') ? 'VIDEO' : 'IMAGE'
+    pendingTypes.value.push(type)
   } else {
-    ElMessage.error(response?.message || '图片上传失败')
+    ElMessage.error(response?.message || '上传失败')
   }
 }
 
 function handleUploadError() {
-  ElMessage.error('图片上传失败，请重试')
+  ElMessage.error('上传失败，请重试')
 }
 
 // 触发文件选择（空状态下使用）
@@ -267,15 +331,67 @@ function triggerUpload() {
   uploadRef.value?.$el.querySelector('input')?.click()
 }
 
-// 保存照片到相册：uploadPhotos(id, urls, description)
+/* ========== 封面设置 ========== */
+
+// 下拉命令：pick=从相册选，upload=上传新图片
+function handleCoverCommand(cmd) {
+  if (cmd === 'pick') coverVisible.value = true
+  else if (cmd === 'upload') coverUploadRef.value?.$el.querySelector('input')?.click()
+}
+
+// 从相册选中一张作为封面
+async function pickCover(photo) {
+  if (photo.url === album.value.coverUrl) {
+    coverVisible.value = false
+    return
+  }
+  try {
+    await albumApi.setCover(albumId, photo.url)
+    album.value.coverUrl = photo.url
+    coverVisible.value = false
+    ElMessage.success('封面已更新')
+  } catch (e) {
+    /* 拦截器已提示 */
+  }
+}
+
+// 封面图上传前校验：仅图片且 ≤ 10MB
+function beforeCoverUpload(file) {
+  if (!file.type.startsWith('image/')) {
+    ElMessage.warning('封面只能使用图片')
+    return false
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.warning('单张图片不能超过 10MB')
+    return false
+  }
+  return true
+}
+
+// 新封面图上传成功：直接设为封面
+async function handleCoverUploadSuccess(response) {
+  if (response && response.code === 0) {
+    try {
+      await albumApi.setCover(albumId, response.data.url)
+      album.value.coverUrl = response.data.url
+      ElMessage.success('封面已更新')
+    } catch (e) {
+      /* 拦截器已提示 */
+    }
+  } else {
+    ElMessage.error(response?.message || '封面图片上传失败')
+  }
+}
+
+// 保存到相册：uploadPhotos(id, urls, types, description)
 async function handleSavePhotos() {
   if (!pendingUrls.value.length) return
   saving.value = true
   try {
-    await albumApi.uploadPhotos(albumId, [...pendingUrls.value], pendingDescription.value || null)
-    ElMessage.success('照片已保存 🎉')
+    await albumApi.uploadPhotos(albumId, [...pendingUrls.value], [...pendingTypes.value], pendingDescription.value || null)
+    ElMessage.success('已保存 🎉')
     cancelPending()
-    await fetchDetail() // 刷新照片列表
+    await fetchDetail() // 刷新媒体列表
   } catch (e) {
     /* 拦截器已提示 */
   } finally {
@@ -286,6 +402,7 @@ async function handleSavePhotos() {
 // 取消待保存状态
 function cancelPending() {
   pendingUrls.value = []
+  pendingTypes.value = []
   pendingDescription.value = ''
   uploadRef.value?.clearFiles()
 }
@@ -409,6 +526,27 @@ async function handleRemovePhoto(photo) {
   aspect-ratio: 1;
 }
 
+/* 视频角标：网格中标识视频，点击进入查看器播放 */
+.video-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.video-badge .el-icon {
+  font-size: 16px;
+}
+
 /* hover 遮罩：显示删除按钮 */
 .photo-mask {
   position: absolute;
@@ -449,6 +587,57 @@ async function handleRemovePhoto(photo) {
   color: #b7a0aa;
 }
 
+/* 选择封面弹窗 */
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.cover-item {
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  aspect-ratio: 1;
+  transition: border-color 0.2s;
+}
+
+.cover-item:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.cover-item.is-active {
+  border-color: var(--el-color-primary);
+}
+
+.cover-item .el-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cover-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--el-color-primary);
+}
+
+.cover-upload-hidden {
+  display: none;
+}
+
 /* 幻灯片查看器 */
 .viewer-dialog :deep(.el-dialog__body) {
   padding: 0;
@@ -471,6 +660,7 @@ async function handleRemovePhoto(photo) {
 .viewer-img {
   width: 100%;
   height: 100%;
+  object-fit: contain; /* 视频元素直接应用，图片由 el-image fit 控制 */
 }
 
 .viewer-counter {

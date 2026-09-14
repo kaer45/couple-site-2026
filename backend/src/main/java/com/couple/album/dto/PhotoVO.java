@@ -20,6 +20,9 @@ public class PhotoVO {
 
     private String thumbnailUrl;
 
+    /** 媒体类型(IMAGE/VIDEO) */
+    private String type;
+
     private String description;
 
     /** 上传者昵称 */

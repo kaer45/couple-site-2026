@@ -308,9 +308,11 @@ async function jumpToDate(date) {
 }
 
 // 滚动到指定日期分组（基于 DOM 元素定位，全量渲染后直接 scrollIntoView）
+// 同时主动点亮侧边栏，避免最底部分组因无法滚进高亮带而永远不高亮
 function scrollToDate(date) {
   const el = document.getElementById('date-' + date)
   if (!el) return
+  activeDate.value = date
   el.scrollIntoView({ behavior: 'auto', block: 'start' })
 }
 
@@ -509,8 +511,10 @@ async function handlePublish() {
 }
 
 /* 时间轴：绝对定位的分组撑起总高度，左侧竖线贯穿 */
+/* 底部留出 40vh 空间，保证最后一个日期分组能被滚进高亮带（否则侧边栏永不点亮） */
 .timeline {
   position: relative;
+  padding-bottom: 40vh;
 }
 
 .timeline::before {

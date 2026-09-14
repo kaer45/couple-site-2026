@@ -29,9 +29,13 @@ public class Album {
     /** 相册描述 */
     private String description;
 
-    /** 封面图 URL（取最新照片） */
+    /** 封面图 URL（取最新照片，或用户手动设置） */
     @TableField("cover_url")
     private String coverUrl;
+
+    /** 封面是否手动设置(0=自动,1=手动)；手动设置的封面不被后续上传覆盖 */
+    @TableField("cover_manual")
+    private Boolean coverManual;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;

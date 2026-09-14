@@ -18,13 +18,13 @@ import java.util.UUID;
 /**
  * 本地文件存储实现：
  * - 保存到 upload.dir 配置目录，按 yyyy/MM/dd 子目录 + UUID 文件名保留扩展名
- * - 校验 contentType 以 image/ 开头、大小 ≤ 10MB
+ * - 校验 contentType 以 image/ 或 video/ 开头、大小 ≤ 200MB（视频场景）
  * - 返回 "/uploads/yyyy/MM/dd/uuid.jpg" 相对 URL
  */
 @Service
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
-    private static final long MAX_FILE_SIZE = 10L * 1024 * 1024; // 10MB
+    private static final long MAX_FILE_SIZE = 200L * 1024 * 1024; // 200MB
 
     /** contentType → 扩展名映射 */
     private static final Map<String, String> EXT_MAP = Map.of(
@@ -32,7 +32,10 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             "image/png", ".png",
             "image/gif", ".gif",
             "image/webp", ".webp",
-            "image/bmp", ".bmp"
+            "image/bmp", ".bmp",
+            "video/mp4", ".mp4",
+            "video/webm", ".webm",
+            "video/quicktime", ".mov"
     );
 
     @Value("${upload.dir}")
@@ -44,15 +47,16 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             throw new BusinessException(400, "文件不能为空");
         }
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-            throw new BusinessException(400, "仅支持上传图片文件");
+        String lowerType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        if (!lowerType.startsWith("image/") && !lowerType.startsWith("video/")) {
+            throw new BusinessException(400, "仅支持上传图片或视频文件");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new BusinessException(400, "图片大小不能超过10MB");
+            throw new BusinessException(400, "文件大小不能超过200MB");
         }
 
         try {
-            String ext = EXT_MAP.getOrDefault(contentType.toLowerCase(Locale.ROOT),
+            String ext = EXT_MAP.getOrDefault(lowerType,
                     extFromOriginalName(file.getOriginalFilename()));
             String subDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
             Path dir = Paths.get(uploadDir).toAbsolutePath().normalize().resolve(subDir);

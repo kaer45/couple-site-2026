@@ -34,6 +34,9 @@ public class Photo {
     @TableField("thumbnail_url")
     private String thumbnailUrl;
 
+    /** 媒体类型(IMAGE=图片,VIDEO=视频) */
+    private String type;
+
     /** 照片描述 */
     private String description;
 

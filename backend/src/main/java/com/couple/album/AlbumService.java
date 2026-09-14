@@ -25,6 +25,9 @@ public interface AlbumService {
     /** 上传照片（JSON 请求体：{ urls, description }，记录 uploader=当前用户） */
     List<PhotoVO> uploadPhotos(Long coupleId, Long albumId, Long userId, AlbumPhotoRequest request);
 
+    /** 手动设置相册封面（标记手动，后续上传不覆盖） */
+    void setCover(Long coupleId, Long albumId, String coverUrl);
+
     /** 删除照片（只能删自己上传的，封面自动回退） */
     void deletePhoto(Long coupleId, Long albumId, Long photoId, Long userId);
 

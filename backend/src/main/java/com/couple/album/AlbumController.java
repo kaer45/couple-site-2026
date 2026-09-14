@@ -5,6 +5,7 @@ import com.couple.album.dto.AlbumPhotoRequest;
 import com.couple.album.dto.AlbumRequest;
 import com.couple.album.dto.AlbumVO;
 import com.couple.album.dto.PhotoVO;
+import com.couple.album.dto.AlbumCoverRequest;
 import com.couple.common.Result;
 import com.couple.config.CoupleUserPrincipal;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,7 +52,7 @@ public class AlbumController {
         return Result.ok(albumService.detail(principal.coupleId(), id));
     }
 
-    /** 4.4 上传照片（JSON 请求体：{ urls, description }） */
+    /** 4.4 上传照片（JSON 请求体：{ urls, types, description }） */
     @PostMapping("/{id}/photos")
     public Result<List<PhotoVO>> uploadPhotos(@AuthenticationPrincipal CoupleUserPrincipal principal,
                                               @PathVariable Long id,
@@ -58,7 +60,16 @@ public class AlbumController {
         return Result.ok(albumService.uploadPhotos(principal.coupleId(), id, principal.id(), request));
     }
 
-    /** 4.5 删除照片 */
+    /** 4.5 手动设置相册封面（后续上传不覆盖） */
+    @PutMapping("/{id}/cover")
+    public Result<Void> setCover(@AuthenticationPrincipal CoupleUserPrincipal principal,
+                                 @PathVariable Long id,
+                                 @Valid @RequestBody AlbumCoverRequest request) {
+        albumService.setCover(principal.coupleId(), id, request.getCoverUrl());
+        return Result.ok();
+    }
+
+    /** 4.6 删除照片 */
     @DeleteMapping("/{id}/photos/{photoId}")
     public Result<Void> deletePhoto(@AuthenticationPrincipal CoupleUserPrincipal principal,
                                     @PathVariable Long id,
@@ -67,7 +78,7 @@ public class AlbumController {
         return Result.ok();
     }
 
-    /** 4.6 删除相册 */
+    /** 4.7 删除相册 */
     @DeleteMapping("/{id}")
     public Result<Void> deleteAlbum(@AuthenticationPrincipal CoupleUserPrincipal principal,
                                     @PathVariable Long id) {

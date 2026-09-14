@@ -98,21 +98,35 @@ public class AlbumServiceImpl implements AlbumService {
 
         User uploader = userMapper.selectById(userId);
         List<PhotoVO> result = new ArrayList<>();
-        for (String url : urls) {
+        for (int i = 0; i < urls.size(); i++) {
+            String url = urls.get(i);
             Photo photo = new Photo();
             photo.setAlbumId(albumId);
             photo.setUserId(userId);
             photo.setUrl(url);
+            photo.setType(normalizeType(request.getTypes() != null && request.getTypes().size() > i
+                    ? request.getTypes().get(i) : null));
             photo.setDescription(request.getDescription());
             photoMapper.insert(photo);
             result.add(toPhotoVO(photo, uploader));
         }
 
-        // 上传后更新相册封面为最新一张
-        Photo latest = latestPhoto(albumId);
-        album.setCoverUrl(latest != null ? latest.getUrl() : null);
-        albumMapper.updateById(album);
+        // 仅当封面不是手动设置时，自动更新为最新一张（手动封面不被后续上传覆盖）
+        if (!Boolean.TRUE.equals(album.getCoverManual())) {
+            Photo latest = latestPhoto(albumId);
+            album.setCoverUrl(latest != null ? latest.getUrl() : null);
+            albumMapper.updateById(album);
+        }
         return result;
+    }
+
+    @Override
+    public void setCover(Long coupleId, Long albumId, String coverUrl) {
+        requireCoupleId(coupleId);
+        Album album = requireOwnedAlbum(coupleId, albumId);
+        album.setCoverUrl(coverUrl);
+        album.setCoverManual(true);
+        albumMapper.updateById(album);
     }
 
     @Override
@@ -133,11 +147,12 @@ public class AlbumServiceImpl implements AlbumService {
         fileStorageService.delete(photo.getUrl());
         photoMapper.deleteById(photoId);
 
-        // 若删除的是封面，回退为最新一张
+        // 若删除的是封面，回退为最新一张；手动封面一并失效（恢复自动模式）
         Album album = albumMapper.selectById(albumId);
         if (album != null && photo.getUrl().equals(album.getCoverUrl())) {
             Photo latest = latestPhoto(albumId);
             album.setCoverUrl(latest != null ? latest.getUrl() : null);
+            album.setCoverManual(false);
             albumMapper.updateById(album);
         }
     }
@@ -175,10 +190,11 @@ public class AlbumServiceImpl implements AlbumService {
         return vo;
     }
 
-    /** 相册最新一张照片（created_at 倒序，同秒按 id 倒序保证稳定） */
+    /** 相册最新一张图片（created_at 倒序，同秒按 id 倒序保证稳定；封面必须是图片，跳过视频） */
     private Photo latestPhoto(Long albumId) {
         return photoMapper.selectOne(new LambdaQueryWrapper<Photo>()
                 .eq(Photo::getAlbumId, albumId)
+                .and(w -> w.ne(Photo::getType, "VIDEO").or().isNull(Photo::getType)) // 兼容历史空值
                 .orderByDesc(Photo::getCreatedAt)
                 .orderByDesc(Photo::getId)
                 .last("limit 1"));
@@ -190,10 +206,16 @@ public class AlbumServiceImpl implements AlbumService {
         vo.setUserId(photo.getUserId());
         vo.setUrl(photo.getUrl());
         vo.setThumbnailUrl(photo.getThumbnailUrl());
+        vo.setType(photo.getType());
         vo.setDescription(photo.getDescription());
         vo.setUploaderNickname(uploader != null ? uploader.getNickname() : null);
         vo.setCreatedAt(photo.getCreatedAt());
         return vo;
+    }
+
+    /** 归一化媒体类型：非法/空值一律按 IMAGE 处理 */
+    private String normalizeType(String type) {
+        return "VIDEO".equalsIgnoreCase(type) ? "VIDEO" : "IMAGE";
     }
 
     /** 校验相册存在且属于当前情侣 */
