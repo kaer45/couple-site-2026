@@ -25,3 +25,9 @@ backend/uploads/
 # ===== 系统 =====
 .DS_Store
 Thumbs.db
+
+# ==== 个人信息 ====
+秋招投递记录表.xlsx
+csv2xlsx.py
+resume-modular.md
+resume-project-templates.md
