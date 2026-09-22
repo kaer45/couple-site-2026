@@ -1,6 +1,7 @@
 package com.couple.album;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.couple.agent.IngestEvent;
 import com.couple.album.dto.AlbumDetailVO;
 import com.couple.album.dto.AlbumPhotoRequest;
 import com.couple.album.dto.AlbumRequest;
@@ -15,8 +16,10 @@ import com.couple.file.FileStorageService;
 import com.couple.user.entity.User;
 import com.couple.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +38,7 @@ public class AlbumServiceImpl implements AlbumService {
     private final PhotoMapper photoMapper;
     private final UserMapper userMapper;
     private final FileStorageService fileStorageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public List<AlbumVO> list(Long coupleId) {
@@ -98,6 +102,12 @@ public class AlbumServiceImpl implements AlbumService {
 
         User uploader = userMapper.selectById(userId);
         List<PhotoVO> result = new ArrayList<>();
+        // 照片入库文本：相册名 + 照片描述（相册本身是共享域）
+        String ingestText = album.getName();
+        String description = request.getDescription();
+        if (StringUtils.hasText(description)) {
+            ingestText = ingestText + " " + description.trim();
+        }
         for (int i = 0; i < urls.size(); i++) {
             String url = urls.get(i);
             Photo photo = new Photo();
@@ -109,6 +119,10 @@ public class AlbumServiceImpl implements AlbumService {
             photo.setDescription(request.getDescription());
             photoMapper.insert(photo);
             result.add(toPhotoVO(photo, uploader));
+
+            // Ingest：照片新增 → 向量库 upsert（事务提交后异步同步）
+            eventPublisher.publishEvent(new IngestEvent("photo", photo.getId(),
+                    ingestText, "couple", coupleId, "upsert"));
         }
 
         // 仅当封面不是手动设置时，自动更新为最新一张（手动封面不被后续上传覆盖）
@@ -147,6 +161,10 @@ public class AlbumServiceImpl implements AlbumService {
         fileStorageService.delete(photo.getUrl());
         photoMapper.deleteById(photoId);
 
+        // Ingest：照片删除 → 向量库 delete
+        eventPublisher.publishEvent(new IngestEvent("photo", photoId, null,
+                "couple", coupleId, "delete"));
+
         // 若删除的是封面，回退为最新一张；手动封面一并失效（恢复自动模式）
         Album album = albumMapper.selectById(albumId);
         if (album != null && photo.getUrl().equals(album.getCoverUrl())) {
@@ -169,6 +187,10 @@ public class AlbumServiceImpl implements AlbumService {
         photos.forEach(p -> fileStorageService.delete(p.getUrl()));
         photoMapper.delete(new LambdaQueryWrapper<Photo>().eq(Photo::getAlbumId, albumId));
         albumMapper.deleteById(albumId);
+
+        // Ingest：相册删除 → 其下每张照片的向量 delete（保持契约按 biz_id 精确删除）
+        photos.forEach(p -> eventPublisher.publishEvent(new IngestEvent("photo", p.getId(), null,
+                "couple", coupleId, "delete")));
     }
 
     /** 组装 AlbumVO（含照片数与封面） */

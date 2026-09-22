@@ -31,6 +31,12 @@ jwt:
 upload:
   dir: ${UPLOAD_DIR:./uploads}
 
+# Agent 服务（Python AI）集成：默认关闭，Python 未就绪不影响主业务
+agent:
+  enabled: ${AGENT_ENABLED:false}
+  url: ${AGENT_URL:http://localhost:8001}
+  key: ${AGENT_KEY:change-me}
+
 # CORS 允许来源（逗号分隔）
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

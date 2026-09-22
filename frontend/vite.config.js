@@ -23,6 +23,12 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:8080',
         changeOrigin: true
+      },
+      // WebSocket 聊天（需 ws:true 才能代理升级请求）
+      '/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true
       }
     }
   },

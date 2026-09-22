@@ -45,6 +45,18 @@ const routes = [
         meta: { title: '纪念日', requiresAuth: true }
       },
       {
+        path: 'chat',
+        name: 'chat',
+        component: () => import('@/views/Chat.vue'),
+        meta: { title: '悄悄话', requiresAuth: true }
+      },
+      {
+        path: 'ai',
+        name: 'ai',
+        component: () => import('@/views/AiChat.vue'),
+        meta: { title: 'AI 助手', requiresAuth: true }
+      },
+      {
         path: 'albums',
         name: 'albums',
         component: () => import('@/views/Album.vue'),

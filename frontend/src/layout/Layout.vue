@@ -19,6 +19,19 @@
           </el-icon>
           <span>纪念日</span>
         </el-menu-item>
+        <el-menu-item index="/chat">
+          <el-icon>
+            <ChatDotRound />
+          </el-icon>
+          <span>悄悄话</span>
+          <el-badge v-if="chatUnread > 0" :value="chatUnread" :max="99" class="chat-menu-badge" />
+        </el-menu-item>
+        <el-menu-item index="/ai">
+          <el-icon>
+            <MagicStick />
+          </el-icon>
+          <span>AI 助手</span>
+        </el-menu-item>
         <el-menu-item index="/albums">
           <el-icon>
             <Camera />
@@ -119,7 +132,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
@@ -127,6 +140,7 @@ import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import * as authApi from '@/api/auth'
 import * as notificationApi from '@/api/notification'
+import * as chatApi from '@/api/chat'
 import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
@@ -138,6 +152,25 @@ const notifStore = useNotificationStore()
 const activeMenu = computed(() => {
   if (route.path.startsWith('/albums')) return '/albums'
   return route.path
+})
+
+/* ========== 聊天未读红点（15s 轮询） ========== */
+const chatUnread = ref(0)
+let chatUnreadTimer = null
+
+async function refreshChatUnread() {
+  if (!userStore.isBound) return
+  try {
+    const data = await chatApi.unreadCount()
+    chatUnread.value = data?.unread || 0
+  } catch (e) {
+    /* 拦截器已提示，静默 */
+  }
+}
+
+// 进入聊天页时清零，离开后再轮询
+onBeforeUnmount(() => {
+  clearInterval(chatUnreadTimer)
 })
 
 // 头像兜底：昵称首字符
@@ -241,6 +274,9 @@ onMounted(async () => {
   }
   if (userStore.token) {
     notifStore.refresh()
+    // 聊天未读：立即拉一次 + 15s 轮询（进入 /chat 页面时 Chat.vue 上报已读后自然清零）
+    refreshChatUnread()
+    chatUnreadTimer = setInterval(refreshChatUnread, 15_000)
   }
 })
 
@@ -305,6 +341,12 @@ function handleLogout() {
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
   font-weight: 600;
+}
+
+/* 聊天未读红点（菜单项右侧） */
+.chat-menu-badge {
+  margin-left: auto;
+  margin-right: 14px;
 }
 
 .layout-right {

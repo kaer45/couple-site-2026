@@ -3,6 +3,7 @@ package com.couple.moment;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.couple.agent.IngestEvent;
 import com.couple.common.BusinessException;
 import com.couple.common.PageResult;
 import com.couple.config.CoupleUserPrincipal;
@@ -13,6 +14,7 @@ import com.couple.moment.mapper.MomentMapper;
 import com.couple.user.entity.User;
 import com.couple.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,6 +35,7 @@ public class MomentServiceImpl implements MomentService {
 
     private final MomentMapper momentMapper;
     private final UserMapper userMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public MomentVO publish(CoupleUserPrincipal principal, MomentRequest request) {
@@ -45,6 +48,10 @@ public class MomentServiceImpl implements MomentService {
         moment.setImages(request.getImages());
         moment.setLocation(request.getLocation());
         momentMapper.insert(moment);
+
+        // Ingest：动态新增 → 向量库 upsert（共享域，事务提交后由监听器异步同步）
+        eventPublisher.publishEvent(new IngestEvent("moment", moment.getId(),
+                buildIngestText(moment), "couple", coupleId, "upsert"));
 
         return toVO(moment, userMapper.selectById(principal.id()));
     }
@@ -103,6 +110,19 @@ public class MomentServiceImpl implements MomentService {
             throw new BusinessException(403, "只能删除自己发布的动态");
         }
         momentMapper.deleteById(id);
+
+        // Ingest：动态删除 → 向量库 delete
+        eventPublisher.publishEvent(new IngestEvent("moment", id, null,
+                "couple", moment.getCoupleId(), "delete"));
+    }
+
+    /** 动态入库文本：正文 + 地点（让 RAG 能检索"我们在哪"这类问题） */
+    private String buildIngestText(Moment moment) {
+        String text = moment.getContent() == null ? "" : moment.getContent().trim();
+        if (StringUtils.hasText(moment.getLocation())) {
+            text = text + (text.isEmpty() ? "" : " ") + "地点：" + moment.getLocation().trim();
+        }
+        return text;
     }
 
     /** 组装 VO；user 可能为 null（用户已删除），昵称头像置空 */
