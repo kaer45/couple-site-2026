@@ -40,7 +40,14 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-604800000}
       UPLOAD_DIR: /data/uploads
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      # AI Agent（Python）集成：默认关闭，需在 .env 显式开启并保证 AGENT_URL 可达
+      AGENT_ENABLED: ${AGENT_ENABLED:-false}
+      AGENT_URL: ${AGENT_URL:-http://host.docker.internal:8001}
+      AGENT_KEY: ${AGENT_KEY:-change-me}
       TZ: Asia/Shanghai
+    # 让容器内可通过 host.docker.internal 访问宿主机上的 Python Agent（Linux 需要此映射）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data/uploads:/data/uploads
     depends_on:

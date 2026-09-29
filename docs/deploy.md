@@ -28,7 +28,7 @@ sudo systemctl enable --now docker
 git clone <你的仓库地址> couple-site && cd couple-site
 
 # 方式二：scp 直传（在项目父目录执行）
-scp -r demo root@<服务器IP>:/opt/couple-site
+scp -r couple-site root@<服务器IP>:/opt/couple-site
 ```
 
 ## 3. 配置环境变量
@@ -41,6 +41,8 @@ vim .env   # 修改 MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / JWT_SECRET 三个必�
 
 生成高强度 JWT 密钥：`openssl rand -base64 32`，把输出粘贴到 `JWT_SECRET=`。
 
+> **AI 助手（可选）**：如需启用 Python Agent，在 `.env` 中把 `AGENT_ENABLED` 改为 `true`，并设置 `AGENT_KEY`（须与 Python 端 `X-Agent-Key` 一致）。后端容器通过 `extra_hosts` 映射的 `host.docker.internal` 访问宿主机上的 Python 服务（默认 `8001` 端口）。**未部署 Python 服务时请保持 `AGENT_ENABLED=false`**，否则 `/api/agent/chat` 与聊天内 `@bot` 只会返回降级文案并持续打错误日志。
+
 ## 4. 构建并启动
 
 ```bash
@@ -48,7 +50,7 @@ docker compose up -d --build
 ```
 
 首次启动会自动：
-- 创建 MySQL 容器并执行 `sql/init.sql`（建库建表，仅空数据卷时执行）；
+- 创建 MySQL 容器并执行 `sql/init.sql`（建库 + 11 张表，仅空数据卷时执行）；
 - 构建后端镜像（Maven 打包，需几分钟）并等待 MySQL 健康后启动；
 - 构建前端镜像（npm install + build）并以 Nginx 托管。
 
@@ -64,7 +66,9 @@ docker compose logs -f backend   # 看后端日志，出现 Started CoupleApplic
 浏览器访问 `http://<服务器IP>/`：
 1. 注册第一个账号 → 页面展示**情侣码**；
 2. 用另一浏览器（或手机）注册第二个账号 → 输入情侣码绑定；
-3. 发布一条动态、上传一张照片验证上传目录（`./data/uploads`）可用。
+3. 发布一条动态、上传一张照片验证上传目录（`./data/uploads`）可用；
+4. 打开「悄悄话」页互发消息，验证 WebSocket 反代正常（Nginx 需转发 Upgrade 头，见 §9）；
+5. 打开「每日待办」新建一条待办，验证个人数据隔离（对方看不到）。
 
 ## 6. 域名 + HTTPS（推荐，正式使用必需）
 
@@ -113,7 +117,10 @@ docker compose up -d
 | 现象 | 处理 |
 |------|------|
 | 后端连不上 MySQL | `docker compose logs backend` 看 URL/账号密码是否与 `.env` 一致；MySQL 健康检查是否通过 |
-| 图片上传失败 | 检查后端 multipart 与 Nginx `client_max_body_size` 是否够大；`data/uploads` 目录权限 |
+| 图片/视频上传失败（413） | Nginx `client_max_body_size` 需覆盖后端上限（后端：单文件 200MB、单请求 250MB，见 `frontend/nginx.conf`）；`data/uploads` 目录权限 |
+| 悄悄话发不出消息 / 一直重连 | Nginx 必须为 `/ws/` 转发 `Upgrade`/`Connection` 头（见 `frontend/nginx.conf` 的 `location /ws/`）；用浏览器控制台看 WS 握手是否 101 |
+| AI 助手 / `@bot` 只回降级文案 | 后端未连上 Python Agent：确认 `.env` 的 `AGENT_ENABLED=true`、`AGENT_URL` 从容器内可达（宿主机服务用 `host.docker.internal:8001`）、`AGENT_KEY` 两侧一致 |
 | 前端白屏 / 刷新 404 | Nginx `try_files ... /index.html` 已处理 SPA 回退；确认访问的是 80 端口 |
 | 登录后接口 401 | 检查服务器时间（JWT 校验依赖时钟）：`timedatectl set-ntp true` |
+| 纪念日通知没收到 | 定时任务每天 08:00 执行（`AnniversaryReminderTask`），仅当 `daysLeft == remind_days` 才发；容器时区需为 `Asia/Shanghai`（compose 已设 `TZ`） |
 | 想改端口 | 改 `docker-compose.yml` 中 frontend 的 `"80:80"` 映射，如 `"8081:80"` |

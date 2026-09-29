@@ -19,6 +19,12 @@ public interface AlbumService {
     /** 创建相册 */
     AlbumVO create(Long coupleId, AlbumRequest request);
 
+    /** 更新相册（名称/描述；改动会触发其下照片向量的 ingest upsert） */
+    AlbumVO update(Long coupleId, Long albumId, AlbumRequest request);
+
+    /** 更新照片描述（会触发该照片向量的 ingest upsert） */
+    PhotoVO updatePhotoDescription(Long coupleId, Long albumId, Long photoId, String description);
+
     /** 相册详情（含照片列表） */
     AlbumDetailVO detail(Long coupleId, Long albumId);
 

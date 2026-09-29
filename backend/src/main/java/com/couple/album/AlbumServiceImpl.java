@@ -103,11 +103,7 @@ public class AlbumServiceImpl implements AlbumService {
         User uploader = userMapper.selectById(userId);
         List<PhotoVO> result = new ArrayList<>();
         // 照片入库文本：相册名 + 照片描述（相册本身是共享域）
-        String ingestText = album.getName();
-        String description = request.getDescription();
-        if (StringUtils.hasText(description)) {
-            ingestText = ingestText + " " + description.trim();
-        }
+        String ingestText = buildPhotoIngestText(album.getName(), request.getDescription());
         for (int i = 0; i < urls.size(); i++) {
             String url = urls.get(i);
             Photo photo = new Photo();
@@ -135,12 +131,60 @@ public class AlbumServiceImpl implements AlbumService {
     }
 
     @Override
+    public AlbumVO update(Long coupleId, Long albumId, AlbumRequest request) {
+        requireCoupleId(coupleId);
+        Album album = requireOwnedAlbum(coupleId, albumId);
+        album.setName(request.getName().trim());
+        album.setDescription(request.getDescription());
+        albumMapper.updateById(album);
+
+        // Ingest 联动：相册名变化 → 其下每张照片的入库文本随之更新（相册名 + 各照片描述）
+        List<Photo> photos = photoMapper.selectList(new LambdaQueryWrapper<Photo>()
+                .eq(Photo::getAlbumId, albumId));
+        photos.forEach(p -> eventPublisher.publishEvent(new IngestEvent("photo", p.getId(),
+                buildPhotoIngestText(album.getName(), p.getDescription()), "couple", coupleId, "upsert")));
+
+        return toAlbumVO(album);
+    }
+
+    @Override
     public void setCover(Long coupleId, Long albumId, String coverUrl) {
         requireCoupleId(coupleId);
         Album album = requireOwnedAlbum(coupleId, albumId);
         album.setCoverUrl(coverUrl);
         album.setCoverManual(true);
         albumMapper.updateById(album);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PhotoVO updatePhotoDescription(Long coupleId, Long albumId, Long photoId, String description) {
+        requireCoupleId(coupleId);
+        requireOwnedAlbum(coupleId, albumId);
+
+        Photo photo = photoMapper.selectById(photoId);
+        if (photo == null || !photo.getAlbumId().equals(albumId)) {
+            throw new BusinessException(404, "照片不存在");
+        }
+        photo.setDescription(description);
+        photoMapper.updateById(photo);
+
+        // Ingest 联动：描述变化 → 该照片向量 upsert（相册名 + 新描述）
+        Album album = albumMapper.selectById(albumId);
+        eventPublisher.publishEvent(new IngestEvent("photo", photoId,
+                buildPhotoIngestText(album != null ? album.getName() : null, description),
+                "couple", coupleId, "upsert"));
+
+        return toPhotoVO(photo, null);
+    }
+
+    /** 照片入库文本：相册名 + 照片描述 */
+    private String buildPhotoIngestText(String albumName, String description) {
+        String text = albumName == null ? "" : albumName;
+        if (StringUtils.hasText(description)) {
+            text = text + " " + description.trim();
+        }
+        return text;
     }
 
     @Override

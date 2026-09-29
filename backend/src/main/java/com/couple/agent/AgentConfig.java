@@ -2,6 +2,7 @@ package com.couple.agent;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
@@ -20,8 +21,9 @@ public class AgentConfig {
         return new RestTemplate();
     }
 
-    /** /ai 页 SSE 应答专用线程池（避免长时间流占用 Tomcat 工作线程） */
+    /** /ai 页 SSE 应答与 @Async 统一线程池（标 @Primary，消除"多 TaskExecutor 无默认"警告） */
     @Bean(name = "agentExecutor")
+    @Primary
     public Executor agentExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);

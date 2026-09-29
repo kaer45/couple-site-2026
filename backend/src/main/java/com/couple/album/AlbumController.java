@@ -4,6 +4,7 @@ import com.couple.album.dto.AlbumDetailVO;
 import com.couple.album.dto.AlbumPhotoRequest;
 import com.couple.album.dto.AlbumRequest;
 import com.couple.album.dto.AlbumVO;
+import com.couple.album.dto.PhotoDescriptionRequest;
 import com.couple.album.dto.PhotoVO;
 import com.couple.album.dto.AlbumCoverRequest;
 import com.couple.common.Result;
@@ -43,6 +44,24 @@ public class AlbumController {
     public Result<AlbumVO> create(@AuthenticationPrincipal CoupleUserPrincipal principal,
                                   @Valid @RequestBody AlbumRequest request) {
         return Result.ok(albumService.create(principal.coupleId(), request));
+    }
+
+    /** 4.2.1 更新相册（名称/描述，联动更新其下照片向量） */
+    @PutMapping("/{id}")
+    public Result<AlbumVO> update(@AuthenticationPrincipal CoupleUserPrincipal principal,
+                                  @PathVariable Long id,
+                                  @Valid @RequestBody AlbumRequest request) {
+        return Result.ok(albumService.update(principal.coupleId(), id, request));
+    }
+
+    /** 4.4.1 更新照片描述（联动更新该照片向量） */
+    @PutMapping("/{id}/photos/{photoId}")
+    public Result<PhotoVO> updatePhotoDescription(@AuthenticationPrincipal CoupleUserPrincipal principal,
+                                                  @PathVariable Long id,
+                                                  @PathVariable Long photoId,
+                                                  @RequestBody PhotoDescriptionRequest request) {
+        return Result.ok(albumService.updatePhotoDescription(
+                principal.coupleId(), id, photoId, request.getDescription()));
     }
 
     /** 4.3 相册详情 */

@@ -157,32 +157,53 @@ CREATE TABLE `notification` (
 
 
 -- ------------------------------------------------------------
--- 9. 聊天消息表 chat_message（实时聊天，双人共享）
---    client_msg_id = 前端幂等键(防重连/抖动重复入库，撞唯一键即丢弃)
---    排序全链路按 id 自增，WS 与历史拉取同序
+-- 9. 个人待办表 user_todo（每日待办）
+--    纯个人数据，按 user_id 硬隔离，对方不可见
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `chat_message` (
+DROP TABLE IF EXISTS `user_todo`;
+CREATE TABLE `user_todo` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '待办ID',
+  `user_id`      BIGINT UNSIGNED NOT NULL COMMENT '所属用户ID(关联 user.id，仅从 JWT 取，前端禁止传)',
+  `title`        VARCHAR(200) NOT NULL COMMENT '待办内容',
+  `done`         TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否完成(0=未完成,1=已完成)',
+  `priority`     TINYINT(1) NOT NULL DEFAULT 0 COMMENT '优先级(0=普通,1=重要)',
+  `due_date`     DATE DEFAULT NULL COMMENT '归属日期(空=未排期)',
+  `completed_at` DATETIME DEFAULT NULL COMMENT '完成时间',
+  `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_date` (`user_id`, `due_date`),
+  KEY `idx_user_done` (`user_id`, `done`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人待办表';
+
+-- ------------------------------------------------------------
+-- 10. 聊天消息表 chat_message（实时聊天，双人共享）
+--     client_msg_id = 客户端幂等键（撞唯一键即丢弃，防重连/抖动重复入库）
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `chat_message`;
+CREATE TABLE `chat_message` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息ID',
-  `couple_id`     BIGINT UNSIGNED NOT NULL COMMENT '所属情侣关系ID(聊天空间域)',
+  `couple_id`     BIGINT UNSIGNED NOT NULL COMMENT '情侣关系ID(聊天空间域)',
   `sender_id`     BIGINT UNSIGNED NOT NULL COMMENT '发送者用户ID',
-  `type`          VARCHAR(10) NOT NULL DEFAULT 'TEXT' COMMENT '消息类型(TEXT=文本,IMAGE=图片,AGENT=机器人回复)',
-  `content`       TEXT NOT NULL COMMENT '消息内容(文本或图片URL)',
-  `bot_flag`      TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否@bot触发(0=普通,1=触发)',
-  `client_msg_id` VARCHAR(64) DEFAULT NULL COMMENT '客户端幂等键(UUID,可空=服务端生成)',
-  `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `type`          VARCHAR(10)  NOT NULL DEFAULT 'TEXT' COMMENT '消息类型(TEXT=文本,IMAGE=图片,AGENT=机器人回复)',
+  `content`       TEXT         NOT NULL COMMENT '消息内容(文本或图片URL)',
+  `bot_flag`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否@bot相关(1=触发或agent回复)',
+  `client_msg_id` VARCHAR(64)  DEFAULT NULL COMMENT '客户端幂等键(UUID,可空=服务端生成)',
+  `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_couple_client` (`couple_id`, `client_msg_id`),
   KEY `idx_couple_id` (`couple_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天消息表';
 
 -- ------------------------------------------------------------
--- 10. 聊天已读位置表 chat_read（轻量未读，一人一行）
---     未读数 = MAX(chat_message.id) - last_read_message_id
+-- 11. 聊天已读位置表 chat_read（轻量未读，一人一行）
+--     未读数 = 对方发且 id > last_read_message_id 的消息数
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `chat_read` (
+DROP TABLE IF EXISTS `chat_read`;
+CREATE TABLE `chat_read` (
   `couple_id`            BIGINT UNSIGNED NOT NULL COMMENT '情侣关系ID',
   `user_id`              BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
-  `last_read_message_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '该用户最后已读的消息ID',
+  `last_read_message_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '最后已读的消息ID',
   `updated_at`           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`couple_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天已读位置表';
@@ -190,7 +211,7 @@ CREATE TABLE IF NOT EXISTS `chat_read` (
 -- ============================================================
 -- 以下为扩展功能预留表（后续迭代再启用，可先不建）
 -- ============================================================
--- -- 9. 情侣任务打卡 task / task_record
+-- -- 12. 情侣任务打卡 task / task_record
 -- CREATE TABLE `task` (
 --   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `couple_id`   BIGINT UNSIGNED NOT NULL,
@@ -212,7 +233,7 @@ CREATE TABLE IF NOT EXISTS `chat_read` (
 --   UNIQUE KEY `uk_task_user_date` (`task_id`, `user_id`, `completed_date`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务打卡记录表';
 --
--- -- 10. 积分记录 point_record（积分商城预留）
+-- -- 13. 积分记录 point_record（积分商城预留）
 -- CREATE TABLE `point_record` (
 --   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `user_id`    BIGINT UNSIGNED NOT NULL,
@@ -221,54 +242,3 @@ CREATE TABLE IF NOT EXISTS `chat_read` (
 --   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 --   PRIMARY KEY (`id`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分变动记录表';
--- ------------------------------------------------------------
--- 12. 个人待办表 user_todo（每日待办）
---    纯个人数据，按 user_id 硬隔离，对方不可见
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS `user_todo`;
-CREATE TABLE `user_todo` (
-  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '待办ID',
-  `user_id`      BIGINT UNSIGNED NOT NULL COMMENT '所属用户ID(关联 user.id，仅从 JWT 取，前端禁止传)',
-  `title`        VARCHAR(200) NOT NULL COMMENT '待办内容',
-  `done`         TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否完成(0=未完成,1=已完成)',
-  `priority`     TINYINT(1) NOT NULL DEFAULT 0 COMMENT '优先级(0=普通,1=重要)',
-  `due_date`     DATE DEFAULT NULL COMMENT '归属日期(空=未排期)',
-  `completed_at` DATETIME DEFAULT NULL COMMENT '完成时间',
-  `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_user_date` (`user_id`, `due_date`),
-  KEY `idx_user_done` (`user_id`, `done`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人待办表';
-
--- ------------------------------------------------------------
--- 13. 聊天消息表 chat_message（实时聊天，双人共享）
---     client_msg_id = 客户端幂等键（撞唯一键即丢弃，防重连/抖动重复入库）
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS `chat_message`;
-CREATE TABLE `chat_message` (
-  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息ID',
-  `couple_id`     BIGINT UNSIGNED NOT NULL COMMENT '情侣关系ID(聊天空间域)',
-  `sender_id`     BIGINT UNSIGNED NOT NULL COMMENT '发送者用户ID',
-  `type`          VARCHAR(10)  NOT NULL DEFAULT 'TEXT' COMMENT '消息类型(TEXT=文本,IMAGE=图片,AGENT=机器人回复)',
-  `content`       TEXT         NOT NULL COMMENT '消息内容(文本或图片URL)',
-  `bot_flag`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否@bot相关(1=触发或agent回复)',
-  `client_msg_id` VARCHAR(64)  DEFAULT NULL COMMENT '客户端幂等键(UUID,可空=服务端生成)',
-  `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_couple_client` (`couple_id`, `client_msg_id`),
-  KEY `idx_couple_id` (`couple_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天消息表';
-
--- ------------------------------------------------------------
--- 14. 聊天已读位置表 chat_read（轻量未读，一人一行）
---     未读数 = 对方发且 id > last_read_message_id 的消息数
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS `chat_read`;
-CREATE TABLE `chat_read` (
-  `couple_id`            BIGINT UNSIGNED NOT NULL COMMENT '情侣关系ID',
-  `user_id`              BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
-  `last_read_message_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '最后已读的消息ID',
-  `updated_at`           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`couple_id`, `user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天已读位置表';

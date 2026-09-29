@@ -127,10 +127,21 @@ public class AgentChatClient {
 
             List<String> deltas = new ArrayList<>();
             List<Map<String, Object>> refs = new ArrayList<>();
+            List<String> errorHolder = new ArrayList<>(); // Python 主动上报的 error（最多一条）
             if (blocks != null) {
                 for (String block : blocks) {
-                    consumeData(block, deltas, refs);
+                    consumeData(block, deltas, refs, errorHolder);
                 }
+            }
+            // Python 明确报错且没有产出任何内容 → 按调用失败处理（前端显示降级文案，而非空回复）
+            if (!errorHolder.isEmpty() && deltas.isEmpty()) {
+                if (consecutiveFailures.incrementAndGet() >= FAIL_THRESHOLD) {
+                    circuitOpen = true;
+                    circuitOpenedAtMs = System.currentTimeMillis();
+                    log.warn("Agent 连续失败 {} 次，熔断 30s", consecutiveFailures.get());
+                }
+                log.warn("Agent 返回错误事件: {}", errorHolder.get(0));
+                return ChatCallResult.error("FAILED", errorHolder.get(0));
             }
             consecutiveFailures.set(0);
             return ChatCallResult.ok(String.join("", deltas), deltas, refs);
@@ -139,17 +150,20 @@ public class AgentChatClient {
         }
     }
 
-    /** 解析 data 行：JSON {content, refs} / 纯文本 / [DONE] */
-    private void consumeData(String block, List<String> deltas, List<Map<String, Object>> refs) {
+    /** 解析 data 行：JSON {content, refs, error} / 纯文本 / [DONE]
+     *  兼容两种形态：Spring SSE 解码已剥离 "data:" 前缀（直接是 JSON 行），或未剥离 */
+    private void consumeData(String block, List<String> deltas, List<Map<String, Object>> refs,
+                             List<String> errorHolder) {
         if (block == null) {
             return;
         }
         for (String line : block.split("\n")) {
             String t = line.trim();
-            if (!t.startsWith("data:")) {
+            if (t.isEmpty()) {
                 continue;
             }
-            String data = t.substring(5).trim();
+            // Spring bodyToFlux(String) 会自动去掉 "data:" 前缀；此处兼容还带前缀的流
+            String data = t.startsWith("data:") ? t.substring(5).trim() : t;
             if (data.isEmpty() || "[DONE]".equals(data)) {
                 continue;
             }
@@ -158,6 +172,10 @@ public class AgentChatClient {
                 JsonNode content = node.get("content");
                 if (content != null && !content.isNull()) {
                     deltas.add(content.asText());
+                }
+                JsonNode error = node.get("error");
+                if (error != null && !error.isNull() && errorHolder.isEmpty()) {
+                    errorHolder.add(error.asText());
                 }
                 JsonNode refsNode = node.get("refs");
                 if (refsNode != null && refsNode.isArray()) {

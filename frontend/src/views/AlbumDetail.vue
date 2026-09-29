@@ -12,6 +12,10 @@
         <div class="detail-desc">{{ album.description || '这个相册还没有描述' }}</div>
       </div>
       <div class="detail-actions">
+        <!-- 编辑相册信息（名称/描述） -->
+        <el-button round @click="openAlbumEdit">
+          <el-icon><EditPen /></el-icon>&nbsp;编辑信息
+        </el-button>
         <!-- 上传照片/视频（触发 el-upload 选择文件，自动上传到 /api/files/upload） -->
         <el-upload
           ref="uploadRef"
@@ -157,7 +161,19 @@
           </el-button>
         </div>
         <div v-if="viewerPhoto" class="viewer-info">
-          <div class="viewer-desc">{{ viewerPhoto.description || '没有描述' }}</div>
+          <div class="viewer-desc">
+            <template v-if="descEditing !== viewerPhoto.id">
+              {{ viewerPhoto.description || '没有描述' }}
+              <el-button link type="primary" size="small" @click="startDescEdit">✏️ 编辑描述</el-button>
+            </template>
+            <template v-else>
+              <el-input v-model="descDraft" placeholder="写点描述（选填）" size="small" maxlength="255" />
+              <div class="viewer-desc-actions">
+                <el-button size="small" type="primary" @click="saveDescEdit">保存</el-button>
+                <el-button size="small" @click="descEditing = null">取消</el-button>
+              </div>
+            </template>
+          </div>
           <div class="viewer-meta">
             {{ viewerPhoto.uploaderNickname }} · {{ dayjs(viewerPhoto.createdAt).format('YYYY-MM-DD HH:mm') }}
           </div>
@@ -172,6 +188,23 @@
           </div>
         </div>
       </div>
+    </el-dialog>
+
+    <!-- ===== 编辑相册信息（名称/描述） ===== -->
+    <el-dialog v-model="albumEditVisible" title="编辑相册信息" width="440px" align-center>
+      <el-form label-position="top">
+        <el-form-item label="相册名称" required>
+          <el-input v-model="albumEditForm.name" maxlength="100" placeholder="相册名称" />
+        </el-form-item>
+        <el-form-item label="相册描述">
+          <el-input v-model="albumEditForm.description" maxlength="255" type="textarea" :rows="2"
+            placeholder="这个相册记录了…（选填）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button round @click="albumEditVisible = false">取消</el-button>
+        <el-button type="primary" round :loading="albumSaving" @click="saveAlbumEdit">保存</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -206,6 +239,64 @@ const saving = ref(false)
 /* 封面相关 */
 const coverVisible = ref(false)
 const coverUploadRef = ref()
+
+/* ========== 编辑相册信息（名称/描述） ========== */
+const albumEditVisible = ref(false)
+const albumSaving = ref(false)
+const albumEditForm = reactive({ name: '', description: '' })
+
+function openAlbumEdit() {
+  albumEditForm.name = album.value.name || ''
+  albumEditForm.description = album.value.description || ''
+  albumEditVisible.value = true
+}
+
+async function saveAlbumEdit() {
+  if (!albumEditForm.name.trim()) {
+    ElMessage.warning('相册名称不能为空')
+    return
+  }
+  albumSaving.value = true
+  try {
+    const data = await albumApi.update(albumId, {
+      name: albumEditForm.name.trim(),
+      description: albumEditForm.description.trim()
+    })
+    // 更新本地（相册名/描述），避免整页刷新
+    album.value.name = data.name
+    album.value.description = data.description
+    ElMessage.success('相册信息已更新')
+    albumEditVisible.value = false
+  } catch (e) {
+    /* 错误提示已由拦截器统一处理 */
+  } finally {
+    albumSaving.value = false
+  }
+}
+
+/* ========== 查看器内编辑照片描述 ========== */
+const descEditing = ref(null) // 正在编辑的照片 id（null=不在编辑）
+const descDraft = ref('')
+
+function startDescEdit() {
+  descEditing.value = viewerPhoto.value?.id ?? null
+  descDraft.value = viewerPhoto.value?.description || ''
+}
+
+async function saveDescEdit() {
+  const photo = viewerPhoto.value
+  if (!photo) return
+  try {
+    await albumApi.updatePhotoDescription(albumId, photo.id, descDraft.value.trim())
+    // 更新本地对应项（viewerPhoto 由 allPhotos 派生，直接改源数组）
+    const target = allPhotos.value.find((p) => p.id === photo.id)
+    if (target) target.description = descDraft.value.trim()
+    descEditing.value = null
+    ElMessage.success('描述已更新')
+  } catch (e) {
+    /* 错误提示已由拦截器统一处理 */
+  }
+}
 
 onMounted(fetchDetail)
 
@@ -706,6 +797,13 @@ async function handleRemovePhoto(photo) {
   font-size: 14px;
   color: #6b5260;
   font-weight: 600;
+}
+
+.viewer-desc-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  justify-content: flex-end;
 }
 
 .viewer-meta {

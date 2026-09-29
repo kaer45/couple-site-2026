@@ -1,7 +1,7 @@
 # Agent 服务契约（Java ↔ Python）
 
-> 版本：v1.0（2026-09-22）
-> 唯一基准：Java 侧 AgentClient / AgentChatClient 与本文档一致，Python 侧按此实现
+> 版本：v1.1（2026-09-29 依据代码校对）
+> 唯一基准：Java 侧 AgentClient / AgentChatClient 与本文档一致，Python 侧按此实现；**若本文档与代码冲突，以代码为准**（已核对项见 §7）
 > 范围：`/v1/ingest`（业务数据同步入向量库）、`/v1/chat`（对话 SSE）、`/v1/health`（探活）
 > 对齐 Java `Result<T>` 风格：HTTP 层成功一律 200；body 为 `{code, message, data}`（code=0 成功）
 
@@ -14,10 +14,10 @@
 | 传输 | Java 内网调用 Python（`agent.url`），不暴露公网 |
 | 鉴权 | 请求头 `X-Agent-Key: <共享密钥>`（`agent.key`），两侧配置一致 |
 | trace_id | 每次请求由 Java 生成 16 位小写十六进制，贯穿日志用于链路追踪 |
-| 失败上报 | Java 侧收到非 200 或异常视为失败；流式接口用 event 表达错误（见 §2.2） |
-| 幂等 | ingest 按 `biz_type + biz_id + scope_id` 幂等（同 key 覆盖/取消），Java 侧 5s 窗口去重 |
-| 超时（Java 侧执行） | 普通请求：连接 3s；对话：阅读 30s、整体 35s |
-| 熔断（Java 侧执行） | `/v1/chat` 连续 5 次失败 → 30s 熔断，期间返回静态降级文案 |
+| 失败上报（现状） | ingest 仅以 HTTP 状态判定成败（4xx/5xx 抛异常才算失败），**不校验 body.code**；对话失败用 SSE event 表达错误（见 §2.2） |
+| 幂等（现状） | ingest 按 `biz_type:biz_id:action` 幂等（同 key 覆盖/取消），**不含 scope_id**；Java 侧另有 5s 窗口去重（该 Map 只写不清理） |
+| 超时（Java 侧执行） | **仅对话客户端**有超时：连接 3s、阅读 30s、整体 35s；**ingest 侧未配置任何超时**（裸 `RestTemplate`） |
+| 熔断（Java 侧执行） | `/v1/chat` 连续 5 次失败 → 30s 熔断（窗口过后放一次试探），期间返回静态降级文案 |
 
 ---
 
@@ -48,6 +48,7 @@ Header: Content-Type: application/json
 
 字段语义：
 - `biz_type`：`moment`=动态、`photo`=相册照片、`note`=学习笔记（后续模块复用同一通道）
+  - **现状**：Java 侧只发布 `moment` 与 `photo` 两类事件，`note` 仅为预留取值，尚无任何发布点。
 - `content`：upsert 必填，为 ready-to-vector 文本；delete 可空
   - moment：动态正文 + 地点（Java 已拼好 `正文 地点：xxx`）
   - photo：相册名 + 照片描述（Java 已拼好 `相册名 描述`）
@@ -63,7 +64,8 @@ Header: Content-Type: application/json
 ```json
 { "code": 0, "message": "success", "data": null }
 ```
-失败（HTTP 4xx/5xx 或 body code!=0）：Java 记录日志并按 5s / 30s / 2min 重试 3 次，仍失败放弃并记 error（可人工补同步）。
+失败判定（Java 侧现状）：只有 HTTP 4xx/5xx（`RestTemplate` 抛异常）才算失败。**HTTP 200 但 body `code != 0` 会被当成成功**，因此 Python 侧如遇内部错误，请同时返回非 200 状态码。
+失败后 Java 记录日志并重试 3 次，实际 sleep 间隔为 **5s、30s**（`RETRY_DELAYS_MS` 中的第 3 个 2min 因循环条件永不执行），仍失败则放弃并记 error（可人工补同步）。重试**不区分错误码**（401/400 同样会重试）。
 
 ### 1.3 幂等 / 删除语义
 
@@ -113,6 +115,14 @@ Accept: text/event-stream
 | 结束 | `data: [DONE]` | 必须发，Java 据此结束流 |
 | 错误（可选） | `{"error":"人类可读错误信息"}` | Python 主动报错；若流中途断开/超时，Java 侧自行兜底降级文案 |
 
+**字段命名对照（重要）**：本文档 §2.1/§2.2 描述的是 **Java ↔ Python** 的字段，增量键名为 `content`。而 Java 转发给**前端**时会换名：
+
+| 链路 | 增量字段 | 结束标记 | 说明 |
+|---|---|---|---|
+| Python → Java | `{"content":"..."}` | `data: [DONE]` | 本文档约定 |
+| Java → 前端（`/api/agent/chat`，SSE） | `{"delta":"..."}` | `data:[DONE]` | 见 `docs/api-contract.md` §10 |
+| Java → 前端（聊天内 `@bot`，WebSocket） | `{"type":"AGENT_STREAM","clientMsgId":"...","delta":"..."}` | `finalFrame:true` + `messageId` | 见 `docs/api-contract.md` §9.3；聊天内不使用 SSE |
+
 推荐实现（兼容 Java 解析）：
 ```
 data: {"content":"你"}
@@ -152,8 +162,8 @@ Java 目前不主动轮询 health，仅靠调用结果判定；本接口供人�
 |---|---|---|---|
 | 200 | 0 | 成功 | 正常返回 |
 | 400 | 400 | 参数错误（缺字段等） | 日志 + 重试（最终放弃） |
-| 401 | 401 | X-Agent-Key 错误 | 日志，不重试（配置问题） |
-| 500 | 500 | 内部错误（embedding/向量库/模型失败） | 日志 + 按 5s/30s/2min 重试 3 次 |
+| 401 | 401 | X-Agent-Key 错误 | 日志；**当前实现仍会重试**（未区分错误码，属已知偏差） |
+| 500 | 500 | 内部错误（embedding/向量库/模型失败） | 日志 + 重试 3 次（实际间隔 5s / 30s） |
 | 408 | 408 | 超时 | 同 500 处理 |
 
 SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/熔断兜底。
@@ -177,13 +187,28 @@ SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/
 
 ## 6. Java 侧灰度与默认
 
-- `agent.enabled=false`（默认）：ingest 静默跳过；`/v1/chat` 直接返回"AI 助手尚未启用"
+- `agent.enabled`（默认值以 `application.yml` 为准：**`true`**；`AgentProperties` 字段默认值为 `false`，仅在无 yml 绑定时生效。Docker 部署的 `.env` 默认设为 `false`）：ingest 静默跳过；`/v1/chat` 直接返回"AI 助手尚未启用"
 - `agent.url`：默认 `http://localhost:8001`
 - `agent.key`：默认 `change-me`，生产必改
 - 环境变量：`AGENT_ENABLED` / `AGENT_URL` / `AGENT_KEY`
+- 仅以上三个 `agent.*` 配置键（无 `agent.timeout` / `agent.retry` 等）
 
-## 7. 变更记录
+## 7. 实现与本文档的已知偏差（以代码为准）
+
+| 项 | 本文档原描述 | 代码实际 |
+|---|---|---|
+| ingest 幂等键 | `biz_type + biz_id + scope_id` | `biz_type:biz_id:action`（不含 scope_id，但区分 action） |
+| ingest 失败判定 | 非 200 或 `body.code != 0` | 仅 HTTP 4xx/5xx；HTTP 200 + `code != 0` 视为成功 |
+| ingest 重试间隔 | 5s / 30s / 2min | 实际只 sleep 5s、30s（第 3 个延迟不生效） |
+| 401 处理 | 不重试（配置问题） | 未区分错误码，仍会重试 3 次 |
+| ingest 超时 | 连接 3s | 未配置任何超时（裸 `RestTemplate`） |
+| 对话错误类型 | 4 类 | 5 类：`DISABLED` / `CIRCUIT_OPEN` / `UNREACHABLE` / `TIMEOUT` / `FAILED`（4xx 与 5xx 均归 `FAILED`） |
+| `agent.enabled` 默认 | `false` | `application.yml` 为 `true`（`.env`/compose 中为 `false`） |
+| 增量字段名 | 全程 `content` | Python→Java 为 `content`，Java→前端为 `delta`（见 §2.2 对照表） |
+
+## 8. 变更记录
 
 | 时间 | 变更 |
 |---|---|
 | 2026-09-22 | 初版定稿（三接口 + SSE 事件格式 + 域规范） |
+| 2026-09-29 | 依据代码核对更新：修正幂等键/失败判定/重试/超时/错误类型/默认值与增量字段名，新增 §7 偏差说明与 §2.2 字段命名对照 |

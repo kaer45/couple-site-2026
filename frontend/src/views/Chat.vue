@@ -32,9 +32,10 @@
             <div class="msg-avatar">{{ avatarOf(m) }}</div>
             <div class="msg-main">
               <div v-if="m.type === 'AGENT'" class="msg-agent-tag">🤖 AI 助手</div>
-              <div class="msg-bubble" :class="{ agent: m.type === 'AGENT' }">
+              <div class="msg-bubble" :class="{ agent: m.type === 'AGENT', _failed: m._failed }">
                 <template v-if="m.type === 'IMAGE'">
-                  <img v-if="m.imgOk !== false" :src="m.content" class="msg-img" @error="m.imgOk = false" />
+                  <img v-if="m.imgOk !== false" :src="m.content" class="msg-img clickable-img" @error="m.imgOk = false"
+                    @click="openImageViewer(m)" />
                   <span v-else class="msg-img-broken">🖼️ 图片已删除</span>
                 </template>
                 <template v-else-if="m.content">
@@ -44,10 +45,11 @@
               </div>
               <div class="msg-time">{{ timeOf(m) }}</div>
             </div>
-            <!-- 发送失败重发 -->
-            <el-button v-if="m._failed" size="small" type="warning" round class="msg-retry" @click="retrySend(m)">
-              重发
-            </el-button>
+            <!-- 发送失败：手动重发（透传原 clientMsgId，服务端幂等） -->
+            <div v-if="m._failed" class="msg-retry-box">
+              <span class="msg-failed-tip">发送失败</span>
+              <el-button size="small" type="warning" round @click="retrySend(m)">重发</el-button>
+            </div>
           </div>
         </div>
 
@@ -55,6 +57,15 @@
         <transition name="el-fade-in">
           <div v-if="showNewFloat" class="chat-new-float" @click="scrollToBottom()">有新消息 ↓</div>
         </transition>
+
+        <!-- 图片放大查看：支持 ←/→ 切换本次会话中的其他图片 -->
+        <el-image-viewer
+          v-if="imgViewerVisible"
+          :url-list="chatImageUrls"
+          :initial-index="imgViewerIndex"
+          teleported
+          @close="imgViewerVisible = false"
+        />
 
         <!-- 输入区 -->
         <div class="chat-input-wrap">
@@ -109,6 +120,18 @@ const connected = ref(false)
 const reconnecting = ref(false)
 const loadingHistory = ref(false)
 const showNewFloat = ref(false)
+/** 图片放大查看器 */
+const imgViewerVisible = ref(false)
+const imgViewerIndex = ref(0)
+const chatImageUrls = computed(() =>
+  messages.value.filter((m) => m.type === 'IMAGE' && m.content).map((m) => m.content)
+)
+
+function openImageViewer(m) {
+  const idx = chatImageUrls.value.findIndex((u) => u === m.content)
+  imgViewerIndex.value = idx < 0 ? 0 : idx
+  imgViewerVisible.value = true
+}
 
 let ws = null
 let reconnectTimer = null
@@ -118,6 +141,8 @@ const seenIds = new Set()
 const seenClientIds = new Set()
 /** 发送失败待重发队列（clientMsgId 不变，服务端幂等） */
 const resendQueue = []
+/** 本地失败占位：clientMsgId → 占位消息 _key（收到服务端同 id 广播时替换） */
+const pendingByClientId = new Map()
 /** 未读上报节流 */
 let readTimer = null
 
@@ -168,6 +193,13 @@ function scheduleReconnect() {
 
 /* ========== 消息处理（REST 历史 / WS 广播统一入口） ========== */
 function handleIncoming(msg) {
+  // 若存在本地失败占位（同 clientMsgId）→ 服务端已确认，先移除占位再用真实消息渲染
+  if (msg.clientMsgId && pendingByClientId.has(msg.clientMsgId)) {
+    const pendingKey = pendingByClientId.get(msg.clientMsgId)
+    const idx = messages.value.findIndex((x) => x._key === pendingKey)
+    if (idx >= 0) messages.value.splice(idx, 1)
+    pendingByClientId.delete(msg.clientMsgId)
+  }
   if (seenIds.has(msg.id)) return
   if (msg.clientMsgId && seenClientIds.has(msg.clientMsgId)) return
   seenIds.add(msg.id)
@@ -272,32 +304,46 @@ function sendText() {
   doSend('TEXT', content)
 }
 
-function doSend(type, content) {
-  const clientMsgId = crypto.randomUUID()
-  const payload = JSON.stringify({ type, content, clientMsgId })
+/** 发送：clientMsgId 不传则新生成；重发必须透传原值（服务端靠它幂等去重） */
+function doSend(type, content, clientMsgId) {
+  const cid = clientMsgId || crypto.randomUUID()
+  const payload = JSON.stringify({ type, content, clientMsgId: cid })
   if (ws && ws.readyState === WebSocket.OPEN) {
     try {
       ws.send(payload)
       return
-    } catch (e) { /* 失败走重发队列 */ }
+    } catch (e) { /* 发送抛异常 → 走失败占位 */ }
   }
-  // 连接未就绪：入队，连接建立后自动重发
-  resendQueue.push({ type, content, clientMsgId })
+  // 连接未就绪/发送失败：本地占位气泡(标记失败) + 入队，连接恢复后自动重发(同 cid)
+  markFailedLocal(type, content, cid)
+  resendQueue.push({ type, content, clientMsgId: cid })
   reconnecting.value = true
+}
+
+/** 失败占位消息：显示"发送失败 + 重发"按钮；服务端确认(广播回同 clientMsgId)时被替换 */
+function markFailedLocal(type, content, cid) {
+  if (pendingByClientId.has(cid)) return // 同一消息已在占位中，不重复添加
+  const item = normalize({ id: null, senderId: myId, type, content, clientMsgId: cid })
+  item._key = 'pending-' + cid // 与真实消息 _key(=clientMsgId) 区分，避免 v-for key 冲突
+  item._pending = true
+  item._failed = true
+  messages.value.push(item)
+  pendingByClientId.set(cid, item._key)
+}
+
+/** 手动重发：透传原 clientMsgId（幂等键不变 → 服务端不会重复入库） */
+function retrySend(m) {
+  doSend(m.type === 'IMAGE' ? 'IMAGE' : 'TEXT', m.content, m.clientMsgId)
 }
 
 function flushResendQueue() {
   while (resendQueue.length) {
     const item = resendQueue.shift()
     try {
+      // 重发复用入队时保存的同一个 clientMsgId —— 服务端撞 (couple_id, client_msg_id) 唯一键去重
       ws.send(JSON.stringify(item))
     } catch (e) { resendQueue.unshift(item); break }
   }
-}
-
-/** 重发按钮（服务端幂等：同 clientMsgId 撞唯一键不会重复） */
-function retrySend(m) {
-  doSend(m.type === 'IMAGE' ? 'IMAGE' : 'TEXT', m.content)
 }
 
 /* ========== 图片发送 ========== */
@@ -377,16 +423,20 @@ function normalize(msg) {
     type: msg.type || 'TEXT',
     content: msg.content || '',
     clientMsgId: msg.clientMsgId || null,
-    done: true, // AGENT 流式进行中为 false
+    // AGENT 流式气泡为 false（进行中）；普通消息/已落库消息默认 true（已完成）
+    done: msg.done ?? true,
     _key
   }
 }
 
 function isMine(m) {
+  // AGENT 回复永远归"对方侧"（senderId 记录的是触发者，不能据此判为我）
+  if (m.type === 'AGENT') return false
   return myId != null && m.senderId === myId
 }
 
 function avatarOf(m) {
+  if (m.type === 'AGENT') return '🤖'
   return isMine(m) ? (userStore.nickname || '我').charAt(0) : (userStore.partner?.nickname || 'Ta').charAt(0)
 }
 
@@ -565,6 +615,15 @@ onBeforeUnmount(() => {
   display: block;
 }
 
+.clickable-img {
+  cursor: zoom-in;
+  transition: transform 0.15s;
+}
+
+.clickable-img:hover {
+  transform: scale(1.02);
+}
+
 .msg-img-broken {
   color: #aaa;
   font-size: 13px;
@@ -577,9 +636,26 @@ onBeforeUnmount(() => {
   padding: 0 2px;
 }
 
-.msg-retry {
-  align-self: center;
-  flex-shrink: 0;
+/* 发送失败占位：气泡置灰 + 重发按钮 */
+.msg-retry-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.msg-row.mine .msg-retry-box {
+  justify-content: flex-end;
+}
+
+.msg-failed-tip {
+  font-size: 12px;
+  color: #e8463a;
+}
+
+.msg-row.mine .msg-bubble._failed,
+.msg-row.other .msg-bubble._failed {
+  opacity: 0.6;
 }
 
 .chat-new-float {

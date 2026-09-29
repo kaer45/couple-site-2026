@@ -13,6 +13,11 @@ export function create(data) {
   return request.post('/albums', data)
 }
 
+// 4.2.1 更新相册（名称/描述）
+export function update(id, data) {
+  return request.put(`/albums/${id}`, data)
+}
+
 // 4.3 相册详情（需登录、已绑定，仅本情侣）→ { id, name, description, coverUrl, photos }
 export function detail(id) {
   return request.get(`/albums/${id}`)
@@ -33,6 +38,11 @@ export function setCover(id, coverUrl) {
 // 4.6 删除照片（只能删自己上传的，否则 403）
 export function removePhoto(albumId, photoId) {
   return request.delete(`/albums/${albumId}/photos/${photoId}`)
+}
+
+// 4.6.1 更新照片描述
+export function updatePhotoDescription(albumId, photoId, description) {
+  return request.put(`/albums/${albumId}/photos/${photoId}`, { description })
 }
 
 // 4.7 删除相册（级联删除其下照片）
