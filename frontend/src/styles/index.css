@@ -65,7 +65,7 @@
   --el-color-warning-dark-2: #a06b19;      /* 白底 4.55:1 */
 
   /* danger —— 收敛 #e6435d / #e8463a / #c7254e / #f56c6c
-     注意：旧的 #e6435d 与品牌粉 #ec6a8f 色相只差约 8°，用户分不清"品牌色"和"危险色"；
+     注意：旧的 var(--el-color-danger) 与品牌粉 var(--el-color-primary) 色相只差约 8°，用户分不清"品牌色"和"危险色"；
      这里推到 #d94336，色相差约 21°。 */
   --el-color-danger: #d94336;
   --el-color-danger-light-3: #e47b72;
@@ -146,7 +146,7 @@ body {
   /* 温柔的粉色渐变背景 */
   background: linear-gradient(135deg, #fff7f9 0%, #ffeaf0 50%, #ffdde8 100%);
   background-attachment: fixed;
-  color: #5c4a52;
+  color: var(--text-main);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -193,13 +193,13 @@ body {
 .auth-title {
   font-size: 22px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
   margin: 12px 0 6px;
 }
 
 .auth-sub {
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
   margin-bottom: 28px;
   line-height: 1.6;
 }
@@ -214,7 +214,7 @@ body {
 .auth-footer {
   margin-top: 18px;
   font-size: 14px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .auth-link {
@@ -227,7 +227,7 @@ body {
 .section-title {
   font-size: 16px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
   margin: 28px 0 14px;
 }
 
@@ -250,7 +250,7 @@ body {
 .markdown-body {
   font-size: 14px;
   line-height: 1.85;
-  color: #5b4750;
+  color: var(--text-main);
   word-break: break-word;
 }
 
@@ -260,7 +260,7 @@ body {
 .markdown-body h4 {
   margin: 18px 0 10px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
   line-height: 1.4;
 }
 
@@ -306,7 +306,7 @@ body {
 .markdown-body blockquote {
   margin: 12px 0;
   padding: 6px 14px;
-  color: #8a7580;
+  color: var(--text-secondary);
   border-left: 3px solid var(--el-color-primary-light-5);
   background: rgba(236, 106, 143, 0.05);
   border-radius: 0 8px 8px 0;
@@ -315,7 +315,7 @@ body {
 .markdown-body code {
   padding: 2px 6px;
   font-size: 13px;
-  color: #c7254e;
+  color: var(--el-color-danger-dark-2);
   background: rgba(236, 106, 143, 0.08);
   border-radius: 5px;
 }
@@ -327,6 +327,8 @@ body {
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.7;
+  /* github.css 的 .hljs 会把文字设成冷近黑 #24292e，这里必须显式压回暖色 */
+  color: var(--text-main);
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-light);
   border-radius: 10px;
@@ -338,6 +340,111 @@ body {
   color: inherit;
   background: transparent;
   border-radius: 0;
+}
+
+/* ================= 代码高亮：把 highlight.js 的 GitHub 冷色主题收敛进本体系 =================
+   markdown.js 引入的是 highlight.js/styles/github.css —— 一整套冷色
+   （蓝 #005cc5 / 紫 #6f42c1 / 红 #d73a49 / 绿 #22863a / 灰 #6a737d …），
+   且基础文字色是冷近黑 #24292e，与暖粉调明显冲突。
+
+   不改第三方文件（升级会被覆盖），而在本文件用**更高优先级**覆盖：
+   第三方是 `.hljs-xxx`（特异度 0,1,0），这里是 `.markdown-body .hljs-xxx`（0,2,0）及以上，
+   所以无论打包后两者先后顺序如何都能生效。
+
+   色值取 dark-2 / strong 档，保证小字号代码文字 ≥4.5:1。
+   例外：注释用 --text-weak（3.17:1）属**刻意低对比**，这是语法高亮的通行做法；
+        若要严格达 AA，把它换成 var(--text-secondary)（5.02:1）即可。 */
+
+.markdown-body .hljs-doctag,
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-meta .hljs-keyword,
+.markdown-body .hljs-template-tag,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-type,
+.markdown-body .hljs-variable.language_,
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-name,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-selector-pseudo {
+  color: var(--sem-accent-strong);        /* 语法骨架 → 紫 */
+}
+
+.markdown-body .hljs-title,
+.markdown-body .hljs-title.class_,
+.markdown-body .hljs-title.class_.inherited__,
+.markdown-body .hljs-title.function_,
+.markdown-body .hljs-section {
+  color: var(--el-color-danger-dark-2);   /* 函数 / 类名 / 标题 → 暖红 */
+}
+
+.markdown-body .hljs-attr,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-number,
+.markdown-body .hljs-operator,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-selector-attr,
+.markdown-body .hljs-selector-class,
+.markdown-body .hljs-selector-id,
+.markdown-body .hljs-bullet {
+  color: var(--el-color-warning-dark-2);   /* 数字 / 属性 / 操作符 → 琥珀 */
+}
+
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-string,
+.markdown-body .hljs-meta .hljs-string {
+  color: var(--el-color-success-dark-2);   /* 字符串 / 正则 → 绿 */
+}
+
+.markdown-body .hljs-comment,
+.markdown-body .hljs-code,
+.markdown-body .hljs-formula,
+.markdown-body .hljs-quote {
+  color: var(--text-weak);                 /* 注释 / 引用 → 刻意弱化 */
+}
+
+.markdown-body .hljs-meta {
+  color: var(--text-secondary);
+}
+
+/* 中性符号统一跟随正文色，避免残留任何未被覆盖的冷色 */
+.markdown-body .hljs-subst,
+.markdown-body .hljs-params,
+.markdown-body .hljs-punctuation,
+.markdown-body .hljs-property,
+.markdown-body .hljs-link,
+.markdown-body .hljs-char.escape_,
+.markdown-body .hljs-tag {
+  color: var(--text-main);
+}
+
+.markdown-body .hljs-emphasis {
+  color: var(--text-main);
+  font-style: italic;
+}
+
+.markdown-body .hljs-strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.markdown-body .hljs-addition {
+  color: var(--el-color-success-dark-2);
+  background-color: var(--el-color-success-light-9);
+}
+
+.markdown-body .hljs-deletion {
+  color: var(--el-color-danger-dark-2);
+  background-color: var(--el-color-danger-light-9);
+}
+
+/* github.css 会给 pre code.hljs 加 1em 内边距，与 .markdown-body pre 的 14px 16px 叠加；
+   这里显式压掉，保证代码块只有一层内边距 */
+.markdown-body pre code.hljs {
+  padding: 0;
+  color: inherit;
+  background: transparent;
 }
 
 .markdown-body table {
@@ -356,7 +463,7 @@ body {
 .markdown-body th {
   background: rgba(236, 106, 143, 0.07);
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .markdown-body hr {

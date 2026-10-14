@@ -229,13 +229,13 @@ async function handleRemove(album) {
 .album-name {
   font-size: 15px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .album-desc {
   margin-top: 4px;
   font-size: 12px;
-  color: #a98d99;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

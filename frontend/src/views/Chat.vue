@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
 
 .chat-header-title {
   font-weight: 600;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .chat-body {
@@ -537,13 +537,13 @@ onBeforeUnmount(() => {
 
 .chat-empty {
   text-align: center;
-  color: #b39aa6;
+  color: var(--text-weak);
   padding: 60px 0;
 }
 
 .chat-empty-tip {
   font-size: 12px;
-  color: #d3b7c3;
+  color: var(--text-weak);
   margin-top: 6px;
 }
 
@@ -562,7 +562,7 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f9b7c8, #ec6a8f);
+  background: linear-gradient(135deg, var(--el-color-primary-light-5), var(--el-color-primary));
   color: #fff;
   display: flex;
   align-items: center;
@@ -584,7 +584,7 @@ onBeforeUnmount(() => {
 
 .msg-agent-tag {
   font-size: 12px;
-  color: #a26de8;
+  color: var(--sem-accent-strong);
   margin-bottom: 2px;
 }
 
@@ -593,7 +593,7 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   background: #fff;
   border: 1px solid rgba(236, 106, 143, 0.15);
-  color: #4a3b43;
+  color: var(--text-strong);
   font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
@@ -602,12 +602,12 @@ onBeforeUnmount(() => {
 }
 
 .msg-row.mine .msg-bubble {
-  background: linear-gradient(135deg, #ffd9e4, #f7b6ca);
+  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-5));
   border-color: transparent;
 }
 
 .msg-bubble.agent {
-  background: #f5f0ff;
+  background: var(--sem-accent-soft);
   border-color: rgba(162, 109, 232, 0.25);
 }
 
@@ -643,7 +643,7 @@ onBeforeUnmount(() => {
 
 .msg-time {
   font-size: 11px;
-  color: #c4a9b4;
+  color: var(--text-weak);
   margin-top: 2px;
   padding: 0 2px;
 }
@@ -662,7 +662,7 @@ onBeforeUnmount(() => {
 
 .msg-failed-tip {
   font-size: 12px;
-  color: #e8463a;
+  color: var(--el-color-danger);
 }
 
 .msg-row.mine .msg-bubble._failed,
@@ -675,7 +675,7 @@ onBeforeUnmount(() => {
   bottom: 70px;
   right: 50%;
   transform: translateX(50%);
-  background: #ec6a8f;
+  background: var(--el-color-primary);
   color: #fff;
   font-size: 12px;
   padding: 6px 14px;
@@ -698,7 +698,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-ibot-btn {
-  color: #a26de8;
+  color: var(--sem-accent-strong);
   border-color: rgba(162, 109, 232, 0.4);
 }
 

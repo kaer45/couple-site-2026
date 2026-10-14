@@ -144,7 +144,7 @@ async function copyCode() {
 <style scoped>
 .code-tip {
   font-size: 14px;
-  color: #a98d99;
+  color: var(--text-secondary);
   text-align: center;
   margin-bottom: 16px;
 }
@@ -159,16 +159,18 @@ async function copyCode() {
   font-size: 13px;
   line-height: 1.7;
   text-align: left;
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  /* 原本是 Tailwind 琥珀三件套（#b45309 / #fef3c7 / #fcd34d），
+     是全站第三套独立的"警示"色；现收敛到 --el-color-warning 家族 */
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+  border: 1px solid var(--el-color-warning-light-5);
   border-radius: 10px;
 }
 
 .code-warning-icon {
   flex-shrink: 0;
   margin-top: 3px;
-  color: #b45309;
+  color: var(--el-color-warning-dark-2);
 }
 
 /* 情侣码大字展示 */

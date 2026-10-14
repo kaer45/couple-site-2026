@@ -215,7 +215,7 @@ function dueText(t) {
 
 .today-hint {
   font-size: 14px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 /* ===== 添加栏 ===== */
@@ -250,7 +250,7 @@ function dueText(t) {
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #6b5260;
+  color: var(--text-strong);
   padding: 14px 4px 8px;
   cursor: pointer;
   user-select: none;
@@ -265,7 +265,7 @@ function dueText(t) {
 }
 
 .group-header.overdue {
-  color: #e6435d;
+  color: var(--el-color-danger);
 }
 
 .group-count {
@@ -282,12 +282,12 @@ function dueText(t) {
 
 .overdue .group-count {
   background: rgba(230, 67, 93, 0.12);
-  color: #e6435d;
+  color: var(--el-color-danger);
 }
 
 .collapse-icon {
   transition: transform 0.25s;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .collapse-icon.collapsed {
@@ -325,7 +325,7 @@ function dueText(t) {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 2px solid #f5acbf;
+  border: 2px solid var(--el-color-primary-light-5);
   background: transparent;
   color: #fff;
   display: inline-flex;
@@ -357,17 +357,17 @@ function dueText(t) {
 
 .todo-title {
   font-size: 15px;
-  color: #5c4a52;
+  color: var(--text-main);
   word-break: break-all;
 }
 
 .todo-title.done {
-  color: #c3adb8;
+  color: var(--text-disabled);
   text-decoration: line-through;
 }
 
 .todo-title.overdue {
-  color: #e6435d;
+  color: var(--el-color-danger);
   font-weight: 500;
 }
 
@@ -380,20 +380,20 @@ function dueText(t) {
 
 .todo-tag {
   font-size: 12px;
-  color: #a98d99;
+  color: var(--text-secondary);
   background: rgba(236, 106, 143, 0.08);
   border-radius: 999px;
   padding: 1px 8px;
 }
 
 .todo-tag.flag {
-  color: #e6435d;
+  color: var(--el-color-danger);
   background: rgba(230, 67, 93, 0.1);
 }
 
 .icon-btn {
   flex-shrink: 0;
-  color: #c9b3be;
+  color: var(--text-weak);
   transition: color 0.2s, transform 0.2s;
 }
 
@@ -403,11 +403,11 @@ function dueText(t) {
 }
 
 .icon-btn.star.active {
-  color: #f5b342;
+  color: var(--el-color-warning);
 }
 
 .icon-btn.del:hover {
-  color: #e6435d;
+  color: var(--el-color-danger);
 }
 
 /* TransitionGroup 动画 */

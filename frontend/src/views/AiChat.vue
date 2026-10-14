@@ -200,12 +200,12 @@ onMounted(() => {
 
 .ai-title {
   font-weight: 700;
-  color: #7c53c1;
+  color: var(--sem-accent-strong);
 }
 
 .ai-sub {
   font-size: 12px;
-  color: #b39aa6;
+  color: var(--text-weak);
   flex: 1;
 }
 
@@ -232,12 +232,12 @@ onMounted(() => {
   font-size: 17px;
   font-weight: 600;
   margin: 12px 0 4px;
-  color: #5c4a57;
+  color: var(--text-strong);
 }
 
 .ai-welcome-sub {
   font-size: 13px;
-  color: #b39aa6;
+  color: var(--text-weak);
   margin-bottom: 18px;
 }
 
@@ -251,7 +251,7 @@ onMounted(() => {
 .ai-suggest {
   border: 1px solid rgba(162, 109, 232, 0.35);
   background: #fff;
-  color: #7c53c1;
+  color: var(--sem-accent-strong);
   padding: 8px 14px;
   border-radius: 999px;
   font-size: 13px;
@@ -260,8 +260,8 @@ onMounted(() => {
 }
 
 .ai-suggest:hover {
-  background: #f5f0ff;
-  border-color: #a26de8;
+  background: var(--sem-accent-soft);
+  border-color: var(--sem-accent);
 }
 
 .ai-msg {
@@ -283,12 +283,12 @@ onMounted(() => {
   justify-content: center;
   flex-shrink: 0;
   font-size: 14px;
-  background: linear-gradient(135deg, #d8c2ff, #a26de8);
+  background: linear-gradient(135deg, var(--sem-accent-soft), var(--sem-accent));
   color: #fff;
 }
 
 .ai-msg.user .ai-msg-avatar {
-  background: linear-gradient(135deg, #ffd9e4, #ec6a8f);
+  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary));
 }
 
 .ai-msg-content {
@@ -308,13 +308,13 @@ onMounted(() => {
   line-height: 1.7;
   word-break: break-word;
   white-space: pre-wrap;
-  color: #4a3b43;
+  color: var(--text-strong);
   background: #fff;
   border: 1px solid rgba(162, 109, 232, 0.15);
 }
 
 .ai-msg.user .ai-bubble {
-  background: linear-gradient(135deg, #ffd9e4, #f7b6ca);
+  background: linear-gradient(135deg, var(--el-color-primary-light-8), var(--el-color-primary-light-5));
   border-color: transparent;
 }
 

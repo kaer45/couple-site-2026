@@ -454,7 +454,7 @@ function sizeText(bytes) {
   margin-bottom: 16px;
   font-size: 12px;
   line-height: 1.7;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .note-list {
@@ -485,7 +485,7 @@ function sizeText(bytes) {
   min-width: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -524,7 +524,7 @@ function sizeText(bytes) {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.6;
-  color: #8a7580;
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -533,12 +533,12 @@ function sizeText(bytes) {
 
 /* 没有正文时的占位提示 */
 .note-item-empty {
-  color: #c9b6bf;
+  color: var(--text-weak);
 }
 
 /* AI 摘要样式（纯文本，区别于 Markdown 渲染的节选） */
 .note-item-ai {
-  color: #7a6470;
+  color: var(--text-secondary);
 }
 
 .note-item-foot {
@@ -550,7 +550,7 @@ function sizeText(bytes) {
 
 .note-item-meta {
   font-size: 12px;
-  color: #bca7b1;
+  color: var(--text-weak);
 }
 
 .note-item-btns {
@@ -578,7 +578,7 @@ function sizeText(bytes) {
 
 .note-view-hint {
   font-size: 12px;
-  color: #bca7b1;
+  color: var(--text-weak);
 }
 
 .note-detail-meta {
@@ -589,7 +589,7 @@ function sizeText(bytes) {
   padding-bottom: 12px;
   margin-bottom: 12px;
   font-size: 12px;
-  color: #a98d99;
+  color: var(--text-secondary);
   border-bottom: 1px solid rgba(236, 106, 143, 0.12);
 }
 
@@ -617,14 +617,14 @@ function sizeText(bytes) {
   align-items: center;
   font-size: 13px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .note-ai-body {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.8;
-  color: #5b4750;
+  color: var(--text-main);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -638,13 +638,13 @@ function sizeText(bytes) {
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.7;
-  color: #bca7b1;
+  color: var(--text-weak);
 }
 
 .note-ai-time {
   margin-top: 6px;
   font-size: 11px;
-  color: #c9b6bf;
+  color: var(--text-weak);
 }
 
 /* 纯文本预览：保留换行、长词换行 */
@@ -654,7 +654,7 @@ function sizeText(bytes) {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.8;
-  color: #5b4750;
+  color: var(--text-main);
   white-space: pre-wrap;
   word-break: break-word;
   background: rgba(236, 106, 143, 0.04);
@@ -679,7 +679,7 @@ function sizeText(bytes) {
 /* 卡片摘要里的行内元素（v-html 渲染出来，拿不到 scoped 属性，故放全局） */
 .note-item-summary strong {
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .note-item-summary em {
@@ -689,7 +689,7 @@ function sizeText(bytes) {
 .note-item-summary code {
   padding: 0 4px;
   font-size: 12px;
-  color: #c7254e;
+  color: var(--el-color-danger-dark-2);
   background: rgba(236, 106, 143, 0.08);
   border-radius: 4px;
 }

@@ -262,7 +262,7 @@ async function handleRemove(item) {
 
 .anni-label {
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
@@ -280,13 +280,13 @@ async function handleRemove(item) {
 .anni-next-name {
   font-size: 18px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .anni-sub {
   margin-top: 4px;
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 
@@ -332,7 +332,7 @@ async function handleRemove(item) {
 }
 
 .upcoming-timeline .timeline-item.today .timeline-dot {
-  border-color: #f5a623;
+  border-color: var(--el-color-warning);
   box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.15);
 }
 
@@ -345,7 +345,7 @@ async function handleRemove(item) {
 .upcoming-card-name {
   font-size: 16px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -353,11 +353,11 @@ async function handleRemove(item) {
 
 .upcoming-card-sub {
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .sub-today {
-  color: #f5a623;
+  color: var(--el-color-warning-dark-2);
   font-weight: 600;
 }
 
@@ -378,7 +378,7 @@ async function handleRemove(item) {
 .anni-item-name {
   font-size: 16px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .start-tag {
@@ -391,12 +391,12 @@ async function handleRemove(item) {
   gap: 4px;
   margin-top: 4px;
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .anni-date-icon {
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .anni-item-days {
@@ -408,7 +408,7 @@ async function handleRemove(item) {
 
 
 .anni-item-days.today {
-  color: #f5a623;
+  color: var(--el-color-warning-dark-2);
 }
 
 .anni-item-actions {
@@ -420,6 +420,6 @@ async function handleRemove(item) {
 .remind-hint {
   margin-left: 10px;
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 </style>

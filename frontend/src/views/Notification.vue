@@ -133,7 +133,7 @@ onMounted(() => {
 .page-title {
   font-size: 20px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .notif-list {
@@ -162,7 +162,7 @@ onMounted(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ec6a8f;
+  background: var(--el-color-primary);
   flex-shrink: 0;
 }
 
@@ -180,7 +180,7 @@ onMounted(() => {
 }
 
 .unread .notif-title {
-  color: #ec6a8f;
+  color: var(--el-color-primary);
 }
 
 .notif-content {

@@ -564,6 +564,15 @@ foreach ($c in $bad) {
 
 # 3) 变量解析闭环：src 里 var() 引用的变量必须都有定义
 #    （定义来源 = element-plus/dist/index.css 或 src/styles/index.css）
+
+# 4) 自引用检查：不得出现 `--x: ... var(--x) ...`
+#    第 3 步抓不到这一类（自引用也算"有定义"），但 CSS 自定义属性自引用会让该属性
+#    在计算时变成无效值，**所有引用它的地方一起失效**。实测在批量替换时踩到过 3 处。
+$css = Get-Content frontend\src\styles\index.css -Raw
+$selfRef = [regex]::Matches($css, '(--[\w-]+)\s*:\s*[^;}]*?var\(\s*(--[\w-]+)\s*\)') |
+           Where-Object { $_.Groups[1].Value -eq $_.Groups[2].Value }
+if ($selfRef) { $selfRef | ForEach-Object { "SELF-REF: $($_.Value.Trim())" } }
+else { "自引用检查：0 处 OK" }
 ```
 
 对比度可用 §3 同一套 WCAG 公式核验（`srgb → 线性 → 相对亮度 → (L1+0.05)/(L2+0.05)`）。
@@ -577,13 +586,16 @@ foreach ($c in $bad) {
 |---|---|---|
 | 2026-10-14 | v1.0 | 初版：语义色 token 化、文字层级收敛、场景识别色、执行 Prompt |
 | 2026-10-14 | **v1.1** | 依据代码实测与 WCAG 计算修订：①把"复用 EP 内置语义色"反转为**接管 35 个 EP 语义变量**；②文字色实测 19 个（非 8 个）、语义色实测各 4 套（非 2 套）；③新增游离冷色定位；④新增"三档绑定用途"核心规则；⑤审计 v1.0 色值对比度不达标并给出达标替换值；⑥补齐 `MomentCard`/`EmptyState`/highlight.js/`error` family；⑦新增 §5「美化」边界与被排除维度的实测数据 |
-| 2026-10-14 | v1.1 落地 | §7 第 1–3 步已实施；发现并补上第 4 个游离冷色 `#4a86c8`；把验收脚本改为"先剔注释再统计"。见 §10 |
+| 2026-10-14 | v1.1 落地 ①–③ | §7 第 1–3 步：接管 EP 64 个变量 + 结构层 21 个；发现并补上第 4 个游离冷色 `#4a86c8`；验收脚本改为"先剔注释再统计"。见 §10.1 |
+| 2026-10-14 | v1.1 落地 ④–⑦ | §7 第 4–7 步：文字层级 19→5（73 处）、`Register.vue` 琥珀告警框、逐页硬编码色 44 处、highlight.js 40 个 class 全覆盖。**过程中踩到 3 处自引用变量定义**（批量替换把 `:root` 定义也换了），验收脚本因此新增自引用检查。见 §10.2 |
 
 ---
 
-## 十、第 1–3 步落地记录
+## 十、落地记录
 
-**改动文件（4 个）**
+### 10.1 §7 第 1–3 步（提交 8ba08f2）
+
+**改动文件（6 个）**
 
 | 文件 | 改动 |
 |---|---|
@@ -617,9 +629,87 @@ foreach ($c in $bad) {
 | 游离色 `#7c9cff` / `#9aa7b5` / `#4a86c8` / `#2c2c2c` / `#f7f7f9` | 全部清零 ✅ |
 | 例外 `#1f1b1e` | 保留且有注释 ✅ |
 
-**待办（不在本次范围）**
+### 10.2 §7 第 4–7 步
 
-- ⚠️ 结构层的边框/填充色阶**只做了计算校验，没有真实渲染目检** —— 请打开
-  `frontend/color-preview.html` 确认粉色是否过重、相邻档位是否可分辨。
-- §7 第 4–8 步（文字收敛、`Register.vue` 琥珀框、逐页替换、highlight.js）未做。
-- 验收目标里的 `#e6435d` 等**暖色系旧值仍在**（合计 19 处），属第 4–6 步范围。
+**改动文件（14 个）**
+
+| 文件 | 改动 |
+|---|---|
+| `index.css` | markdown 代码块加 `color: var(--text-main)` 压掉 github.css 的冷近黑；新增 `.markdown-body .hljs-*` 覆盖块；`.markdown-body code` 的 `#c7254e` → `var(--el-color-danger-dark-2)` |
+| 12 个 `.vue` | 文字色 **73 处** + 其余硬编码色 **44 处** → token |
+| `Register.vue` | Tailwind 琥珀三件套（`#b45309`/`#fef3c7`/`#fcd34d`）→ `--el-color-warning{,-dark-2,-light-9,-light-5}` |
+| `color-preview.html` | 新增第 8、9 节：真实代码块 + github.css 配色对照 |
+
+**文字层级收敛（19 值 / 73 处）**
+
+映射规则：**按原对比度单调排序**落到 5 档，无主观取舍。
+
+| 原值 | 原对比度 | → token | 处数 |
+|---|---|---|---|
+| `#4a3b43` `#6b5260` | 10.51 / 7.00 | `--text-strong` | 2 + 22 |
+| `#5c4a52` `#5b4750` | 8.21 / 8.13 | `--text-main` | 3 + 3 |
+| `#8a7580` `#8a7380` `#8a6f7c` `#a98d99` | 4.25 / 4.2 / 4.2 / **3.02** | `--text-secondary` | 2 + 2 + 1 + 22 |
+| `#b39aa6` `#bca7b1` `#b7a0aa` `#c9b6bf` `#c4a9b4` `#c9a7b5` `#d3b7c3` `#c9b3be` | 2.60 → 1.78 | `--text-weak` | 3+3+3+2+1+1+1+1 |
+| `#c3adb8`（`.todo-title.done`） | 1.86 | `--text-disabled` | 1 |
+
+> **又漏了两个**：`#5c4a57`（`AiChat.vue` 的 `.ai-welcome-title`）与 `#7a6470`
+> （`Note.vue` 的 `.note-item-ai`）同样是暖灰文字色，前两轮都漏了 —— 与漏掉 `#4a86c8`
+> 属同一类错误。**教训：色值盘点要按色相/饱和度全量分类，抽样一定会漏。**
+
+**逐页硬编码色（20 值 / 44 处）**
+
+| 类别 | 映射 |
+|---|---|
+| 品牌粉 | `#ec6a8f` → `--el-color-primary`；`#ffd9e4` → `-light-8`；`#f7b6ca` / `#f9b7c8` / `#f5acbf` → `-light-5` |
+| 危险 | `#e6435d` / `#e8463a` → `--el-color-danger`；`#c7254e` → `--el-color-danger-dark-2` |
+| 警示 | `#f5a623`：**color** → `-dark-2`、**border-color** → base；`#f5b342` → base |
+| 紫 | `#a26de8`：**color** → `--sem-accent-strong`、(底色/描边) → `--sem-accent`；`#7c53c1` → `-strong`；`#d8c2ff` / `#f5f0ff` → `--sem-accent-soft` |
+
+**按属性区分档位是关键**：`color` 必须用 dark-2 / strong 档
+（base 档小字过不了 4.5:1，见 §2.2），只有 `background` / `border-color` 才用 base。
+
+**highlight.js 收敛**
+
+`github.css` 自带 13 组选择器 / 13 个冷色，且基础文字色是冷近黑 `#24292e` ——
+**它在 `node_modules` 里，src 内的色值扫描完全看不到**。本方案不改第三方文件，
+用 `.markdown-body .hljs-*`（特异度 0,2,0 起）覆盖其 `.hljs-*`（0,1,0）：
+`github.css` 的 **40 个 class 全覆盖、0 遗漏**。
+目检页刻意把 `github.css` 放在我们 CSS **之后**加载，用来验证覆盖靠特异度生效而非加载顺序。
+
+### 10.3 踩到的坑：批量替换制造了 3 处自引用
+
+批量替换脚本把 `:root` 里的**定义本身**也替换了：
+
+```
+--el-color-primary: var(--el-color-primary);
+--el-color-primary-light-5: var(--el-color-primary-light-5);
+--sem-accent: var(--sem-accent);
+```
+
+CSS 自定义属性自引用会让该属性在计算时变成无效值，**所有引用它的地方一起失效**。
+而原有的「`var()` 解析闭环」检查抓不到它 —— 自引用也算"有定义"。
+→ 已在 §8 验收脚本补第 4 步「自引用检查」，3 处已修复并复验。
+
+**结论：批量替换脚本必须先排除 `:root` 定义块**（或只匹配 `color:` / `background:` 等属性行）。
+
+### 10.4 最终验证（全绿）
+
+| 检查 | 结果 |
+|---|---|
+| `index.css` 括号平衡 | `{}` 52/52、`()` 46/46 ✅ |
+| **自引用变量** | **0 处** ✅ |
+| `:root` 完整性 | 72 条声明 / 72 个变量 / **0 重复** ✅ |
+| `var()` 解析闭环 | 引用 26 个变量，**未定义 0 个** ✅ |
+| **旧色值全量验收**（剔注释 + 剔 `:root`） | **剩余 0** ✅ |
+| 剩余硬编码色 | 仅 4 处，全为刻意保留：背景渐变 `#fff7f9` / `#ffeaf0` / `#ffdde8` + 图片遮罩 `#1f1b1e` ✅ |
+| highlight.js 覆盖 | 40 个 class，**0 遗漏** ✅ |
+| `.markdown-body` 容器 | AiChat / Chat / Note 共 5 处渲染点全部带该 class ✅ |
+
+### 10.5 待办
+
+- ⚠️ **结构层（边框/填充色阶）与代码高亮仍需肉眼目检** —— 打开 `frontend/color-preview.html`，
+  重点看第 4、5 节（结构层）与新增的第 8 节（代码块）。
+- 已知且可接受的对比度不足，三处都在目检页列明：tag 文字 2.77–3.81（贴 EP 观感，已确认接受）、
+  MD 格式徽章白字 3.57、代码注释 3.17（语法高亮的通行做法）。
+- §5 提到的三项「美化」杠杆 —— **elevation 3 档 / radius 3 档 / `:focus-visible`** —— 未做。
+  那才是从"色彩一致"走向"美化"的部分：现在仍有 11 个 box-shadow、10 个 border-radius、0 个焦点样式。

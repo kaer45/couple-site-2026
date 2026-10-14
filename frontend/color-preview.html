@@ -17,6 +17,9 @@
 
 <link rel="stylesheet" href="./node_modules/element-plus/dist/index.css">
 <link rel="stylesheet" href="./src/styles/index.css">
+<!-- 刻意把 github.css 放在**最后**：模拟"第三方主题后加载"的最坏情况，
+     用来验证 index.css 里的 .hljs-* 覆盖确实是靠选择器特异度生效、而不是靠加载顺序 -->
+<link rel="stylesheet" href="./node_modules/highlight.js/styles/github.css">
 
 <style>
   /* 仅用于本页排版，不参与配色评估 */
@@ -312,6 +315,41 @@
     对比度按 WCAG 相对亮度公式计算，背景取<strong>渐变最深档 <code>#ffdde8</code></strong> 时另有一套数值，
     上表列的是白底（卡片内文字的主场景）。
   </p>
+</div>
+
+<h2>8. 代码高亮（highlight.js 收敛）</h2>
+<p class="sub">
+  下面这块用的是 highlight.js 的原生 class，且 <code>github.css</code> 在本页被刻意放在最后加载。<br>
+  如果看到的是<strong>暖色</strong>（紫 / 绿 / 琥珀 / 暖红），说明 <code>.markdown-body .hljs-*</code>
+  的覆盖靠特异度生效了；如果看到蓝 <span style="color:#005cc5">#005cc5</span>、
+  紫 <span style="color:#6f42c1">#6f42c1</span> 这类冷色，说明覆盖失败。<br>
+  注意代码文字的基础色：原来被 github.css 设成冷近黑 <code>#24292e</code>，现在应是暖色。
+</p>
+<div class="panel markdown-body">
+<pre class="hljs"><code><span class="hljs-comment">// 计算两晚住宿加交通费</span>
+<span class="hljs-keyword">const</span> <span class="hljs-variable language_">total</span> = <span class="hljs-number">320</span> * <span class="hljs-number">2</span> + <span class="hljs-number">180</span>;
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">fmt</span>(<span class="hljs-params">n</span>) {
+  <span class="hljs-keyword">return</span> <span class="hljs-string">`¥<span class="hljs-subst">${n}</span>`</span>;  <span class="hljs-comment">// 模板字符串</span>
+}
+<span class="hljs-keyword">const</span> <span class="hljs-title class_">Config</span> = { <span class="hljs-attr">retries</span>: <span class="hljs-number">3</span>, <span class="hljs-attr">mode</span>: <span class="hljs-string">"strict"</span> };
+</code></pre>
+</div>
+
+<h2>9. 代码块配色清单</h2>
+<div class="panel">
+  <table class="audit">
+    <thead><tr><th>语法元素</th><th>github.css 原色</th><th>本体系</th><th>对比度</th></tr></thead>
+    <tbody>
+      <tr><td>关键字 / 类型 / 内置</td><td class="old" style="color:#d73a49">#d73a49 冷红</td><td>--sem-accent-strong</td><td class="pass">5.22</td></tr>
+      <tr><td>函数名 / 类名 / 标题</td><td class="old" style="color:#6f42c1">#6f42c1 冷紫</td><td>--el-color-danger-dark-2</td><td class="pass">6.25</td></tr>
+      <tr><td>数字 / 属性 / 操作符</td><td class="old" style="color:#005cc5">#005cc5 冷蓝</td><td>--el-color-warning-dark-2</td><td class="pass">4.55</td></tr>
+      <tr><td>字符串 / 正则</td><td class="old" style="color:#032f62">#032f62 深蓝</td><td>--el-color-success-dark-2</td><td class="pass">5.01</td></tr>
+      <tr><td>基础文字</td><td class="old" style="color:#24292e">#24292e 冷近黑</td><td>--text-main</td><td class="pass">8.21</td></tr>
+      <tr><td>注释 / 引用</td><td class="old" style="color:#6a737d">#6a737d 中灰</td><td>--text-weak</td><td class="fail">3.17（刻意弱化）</td></tr>
+      <tr><td>新增行</td><td class="old">#22863a on #f0fff4</td><td>success-dark-2 on success-light-9</td><td class="pass">—</td></tr>
+      <tr><td>删除行</td><td class="old">#b31d28 on #ffeef0</td><td>danger-dark-2 on danger-light-9</td><td class="pass">—</td></tr>
+    </tbody>
+  </table>
 </div>
 
 </body>

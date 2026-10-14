@@ -536,7 +536,7 @@ async function handleRemovePhoto(photo) {
 .detail-name {
   font-size: 22px;
   font-weight: 800;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .title-icon {
@@ -548,7 +548,7 @@ async function handleRemovePhoto(photo) {
 .detail-desc {
   margin-top: 6px;
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .detail-actions {
@@ -568,7 +568,7 @@ async function handleRemovePhoto(photo) {
 
 .pending-text {
   font-size: 14px;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .pending-desc-input {
@@ -596,7 +596,7 @@ async function handleRemovePhoto(photo) {
 
 .month-count {
   font-size: 12px;
-  color: #b7a0aa;
+  color: var(--text-weak);
 }
 
 /* 照片网格 */
@@ -660,7 +660,7 @@ async function handleRemovePhoto(photo) {
 
 .photo-desc {
   font-size: 13px;
-  color: #6b5260;
+  color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -669,13 +669,13 @@ async function handleRemovePhoto(photo) {
 .photo-desc-icon {
   vertical-align: -2px;
   margin-right: 4px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .photo-meta {
   margin-top: 3px;
   font-size: 11px;
-  color: #b7a0aa;
+  color: var(--text-weak);
 }
 
 /* 选择封面弹窗 */
@@ -798,7 +798,7 @@ async function handleRemovePhoto(photo) {
 
 .viewer-desc {
   font-size: 14px;
-  color: #6b5260;
+  color: var(--text-strong);
   font-weight: 600;
 }
 
@@ -811,7 +811,7 @@ async function handleRemovePhoto(photo) {
 
 .viewer-meta {
   font-size: 12px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .viewer-actions {

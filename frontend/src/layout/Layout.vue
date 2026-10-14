@@ -324,7 +324,7 @@ function handleLogout() {
   height: 60px;
   font-size: 18px;
   font-weight: 700;
-  color: #ec6a8f;
+  color: var(--el-color-primary);
 }
 
 .logo-icon {
@@ -413,12 +413,12 @@ function handleLogout() {
   margin-top: 14px;
   font-size: 13px;
   line-height: 1.7;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .header-nickname {
   font-weight: 600;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .layout-main {
@@ -434,7 +434,7 @@ function handleLogout() {
 .bell-btn {
   border: none;
   background: transparent;
-  color: #ec6a8f;
+  color: var(--el-color-primary);
 }
 
 .bell-btn:hover {
@@ -455,7 +455,7 @@ function handleLogout() {
   font-weight: 600;
   padding: 10px 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .notif-item {
@@ -482,7 +482,7 @@ function handleLogout() {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ec6a8f;
+  background: var(--el-color-primary);
   margin-top: 8px;
   flex-shrink: 0;
 }
@@ -500,7 +500,7 @@ function handleLogout() {
 }
 
 .unread .notif-item-title {
-  color: #ec6a8f;
+  color: var(--el-color-primary);
 }
 
 .notif-item-content {

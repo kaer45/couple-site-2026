@@ -109,13 +109,13 @@ async function handleDelete() {
 .moment-nickname {
   font-size: 15px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .moment-time {
   margin-top: 2px;
   font-size: 12px;
-  color: #b7a0aa;
+  color: var(--text-weak);
 }
 
 .moment-delete {
@@ -126,7 +126,7 @@ async function handleDelete() {
   margin-top: 12px;
   font-size: 15px;
   line-height: 1.7;
-  color: #5c4a52;
+  color: var(--text-main);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -154,12 +154,12 @@ async function handleDelete() {
 .moment-location {
   margin-top: 10px;
   font-size: 13px;
-  color: #8a7380;
+  color: var(--text-secondary);
 }
 
 .moment-loc-icon {
   vertical-align: -2px;
   margin-right: 4px;
-  color: #8a7380;
+  color: var(--text-secondary);
 }
 </style>

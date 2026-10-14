@@ -472,7 +472,7 @@ async function handlePublish() {
 
 .stat-label {
   font-size: 14px;
-  color: #a98d99;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -497,13 +497,13 @@ async function handlePublish() {
 .stat-sub {
   margin-top: 8px;
   font-size: 13px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .stat-empty {
   margin: 14px 0 4px;
   font-size: 14px;
-  color: #a98d99;
+  color: var(--text-secondary);
 }
 
 .publish-bar {
@@ -602,7 +602,7 @@ async function handlePublish() {
   padding: 10px 12px 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #6b5260;
+  color: var(--text-strong);
 }
 
 .rail-calendar {
@@ -623,7 +623,7 @@ async function handlePublish() {
   padding: 8px 8px 2px;
   font-size: 11px;
   font-weight: 600;
-  color: #c9a7b5;
+  color: var(--text-weak);
   cursor: pointer;
   border-radius: 6px;
 }
@@ -638,7 +638,7 @@ async function handlePublish() {
   margin: 2px 0;
   font-size: 12px;
   text-align: center;
-  color: #8a6f7c;
+  color: var(--text-secondary);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s;
