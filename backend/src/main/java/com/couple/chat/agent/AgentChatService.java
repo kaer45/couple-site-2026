@@ -37,39 +37,31 @@ public class AgentChatService {
         String sessionId = "couple".equals(scope) ? "couple" + scopeId
                 : "user" + scopeId;
         String agentMsgId = UUID.randomUUID().toString();
+        // 累积"已经推给前端的内容"：中途失败时以它为准落库，保证历史记录与用户看到的一致
+        StringBuilder streamed = new StringBuilder();
 
         AgentChatClient.ChatCallResult result =
-                agentChatClient.call(userId, coupleId, sessionId, userMessage, scope, scopeId);
+                agentChatClient.call(userId, coupleId, sessionId, userMessage, scope, scopeId,
+                        delta -> {
+                            streamed.append(delta);
+                            pushDelta(pusher, agentMsgId, delta);   // 边收边推，前端逐字显示
+                        });
 
         if (!result.isOk()) {
-            // 失败：三类降级文案 + 错误结束帧；完整文案落库便于历史回看
-            String fallback = fallbackText(result.getErrorType());
-            MessageVO vo = chatService.save(coupleId, userId, "AGENT", fallback, agentMsgId, true);
-            AgentStreamFrame frame = new AgentStreamFrame();
-            frame.setClientMsgId(agentMsgId);
-            frame.setFinalFrame(true);
-            frame.setMessageId(vo != null ? vo.getId() : null);
-            frame.setError(fallback);
-            push(pusher, frame);
+            // 失败：已推过的部分优先落库；一个字都没产出时才用降级文案，并作为错误结束帧下发
+            boolean nothingStreamed = streamed.length() == 0;
+            String text = nothingStreamed ? fallbackText(result.getErrorType()) : streamed.toString();
+            MessageVO vo = chatService.save(coupleId, userId, "AGENT", text, agentMsgId, true);
+            pushFinal(pusher, agentMsgId, vo, nothingStreamed ? text : null);
+            log.warn("Agent 回复失败 coupleId={}, userId={}, 已推长度={}, 原因={}",
+                    coupleId, userId, streamed.length(), result.getErrorType());
             return;
         }
 
-        // 成功：逐段推流式帧
-        for (String delta : result.getDeltas()) {
-            AgentStreamFrame frame = new AgentStreamFrame();
-            frame.setClientMsgId(agentMsgId);
-            frame.setDelta(delta);
-            frame.setFinalFrame(false);
-            push(pusher, frame);
-        }
-        // 完整回复落库（历史/重连后可见）
+        // 成功：完整回复落库（历史/重连后可见）
         MessageVO vo = chatService.save(coupleId, userId, "AGENT",
                 result.fullText(), agentMsgId, true);
-        AgentStreamFrame done = new AgentStreamFrame();
-        done.setClientMsgId(agentMsgId);
-        done.setFinalFrame(true);
-        done.setMessageId(vo != null ? vo.getId() : null);
-        push(pusher, done);
+        pushFinal(pusher, agentMsgId, vo, null);
         log.info("Agent 回复完成 coupleId={}, userId={}, 长度={}", coupleId, userId, result.fullText().length());
     }
 
@@ -81,6 +73,25 @@ public class AgentChatService {
             case "TIMEOUT" -> "AI 助手响应超时，请稍后重试。";
             default -> "AI 助手服务繁忙，请稍后重试。";
         };
+    }
+
+    /** 增量帧：前端按 clientMsgId 找到同一气泡追加文本 */
+    private void pushDelta(Consumer<String> pusher, String agentMsgId, String delta) {
+        AgentStreamFrame frame = new AgentStreamFrame();
+        frame.setClientMsgId(agentMsgId);
+        frame.setDelta(delta);
+        frame.setFinalFrame(false);
+        push(pusher, frame);
+    }
+
+    /** 结束帧：带回真实 messageId，告诉前端本轮流结束 */
+    private void pushFinal(Consumer<String> pusher, String agentMsgId, MessageVO vo, String error) {
+        AgentStreamFrame frame = new AgentStreamFrame();
+        frame.setClientMsgId(agentMsgId);
+        frame.setFinalFrame(true);
+        frame.setMessageId(vo != null ? vo.getId() : null);
+        frame.setError(error);
+        push(pusher, frame);
     }
 
     private void push(Consumer<String> pusher, AgentStreamFrame frame) {

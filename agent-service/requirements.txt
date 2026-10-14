@@ -1,0 +1,29 @@
+# ============================================================
+# couple-site Agent 服务依赖
+# 安装：pip install -r requirements.txt
+# ============================================================
+
+# ---------- 智能体框架 ----------
+# ⚠️ 版本必须写死：1.0.0 改过顶层导出与模块结构（streaming / session_store 等），
+#    用 >=0.2.9 会在某次 pip install 后静默炸掉。
+# 它已自动携带：openai<2 / pydantic>=2 / requests / python-dotenv /
+#              beautifulsoup4 / numpy>=2 / networkx / tiktoken —— 不要重复声明。
+hello-agents==0.2.9
+
+# ---------- HTTP 服务 ----------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic-settings>=2.3,<3.0
+
+# ---------- 向量库 ----------
+# 框架的 QdrantVectorStore 需要。
+# ⚠️ 不要装 hello-agents[memory]（会额外拖进 spacy + scikit-learn）或
+#    hello-agents[rag]（torch + transformers + sentence-transformers，好几个 GB）。
+qdrant-client>=1.9
+
+# ---------- 知识图谱（下一轮做实体/关系抽取时启用）----------
+# 代码中为懒加载：未安装也不影响前四个接口启动。
+neo4j>=5.0
+
+# ---------- 测试（可选）----------
+# pytest>=8.0

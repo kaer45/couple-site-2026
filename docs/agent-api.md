@@ -1,9 +1,14 @@
 # Agent 服务契约（Java ↔ Python）
 
 > 版本：v1.1（2026-09-29 依据代码校对）
-> 唯一基准：Java 侧 AgentClient / AgentChatClient 与本文档一致，Python 侧按此实现；**若本文档与代码冲突，以代码为准**（已核对项见 §7）
-> 范围：`/v1/ingest`（业务数据同步入向量库）、`/v1/chat`（对话 SSE）、`/v1/health`（探活）
+> 唯一基准：Java 侧 AgentClient / AgentChatClient 与本文档一致，Python 侧按此实现；**若本文档与代码冲突，以代码为准**（已核对项见 §8）
+> 范围：`/v1/ingest`（业务数据同步入向量库）、`/v1/chat`（对话 SSE）、`/v1/summarize`（内容摘要）、`/v1/health`（探活）
 > 对齐 Java `Result<T>` 风格：HTTP 层成功一律 200；body 为 `{code, message, data}`（code=0 成功）
+>
+> **实现状态**：`agent-service/`（Python / FastAPI）**核心四接口已实现** —— 含向量检索、
+> SQLite 多轮会话、离线 mock 开关；Neo4j 知识图谱待实现。
+> 实现说明见 `agent-service/README.md`，施工与踩坑记录见 `docs/agent-service-build-guide.md`。
+> 本文档是双边的**唯一契约**，实现方式不受其约束。
 
 ---
 
@@ -16,8 +21,8 @@
 | trace_id | 每次请求由 Java 生成 16 位小写十六进制，贯穿日志用于链路追踪 |
 | 失败上报（现状） | ingest 仅以 HTTP 状态判定成败（4xx/5xx 抛异常才算失败），**不校验 body.code**；对话失败用 SSE event 表达错误（见 §2.2） |
 | 幂等（现状） | ingest 按 `biz_type:biz_id:action` 幂等（同 key 覆盖/取消），**不含 scope_id**；Java 侧另有 5s 窗口去重（该 Map 只写不清理） |
-| 超时（Java 侧执行） | **仅对话客户端**有超时：连接 3s、阅读 30s、整体 35s；**ingest 侧未配置任何超时**（裸 `RestTemplate`） |
-| 熔断（Java 侧执行） | `/v1/chat` 连续 5 次失败 → 30s 熔断（窗口过后放一次试探），期间返回静态降级文案 |
+| 超时（Java 侧执行） | 对话：连接 3s、阅读 30s、整体 35s；摘要：连接 3s、整体 60s；**ingest 侧未配置任何超时**（裸 `RestTemplate`） |
+| 熔断（Java 侧执行） | `/v1/chat` 与 `/v1/summarize` **共用**失败计数：连续 5 次失败 → 30s 熔断（窗口过后放一次试探），期间返回静态降级文案 |
 
 ---
 
@@ -48,10 +53,11 @@ Header: Content-Type: application/json
 
 字段语义：
 - `biz_type`：`moment`=动态、`photo`=相册照片、`note`=学习笔记（后续模块复用同一通道）
-  - **现状**：Java 侧只发布 `moment` 与 `photo` 两类事件，`note` 仅为预留取值，尚无任何发布点。
+  - **现状**：Java 侧已发布 `moment`（动态新增/删除）、`photo`（照片上传/改描述/删除）、`note`（学习笔记上传/改标题/删除）三类事件；`note` 使用 `scope=personal`、`scope_id=userId`。
 - `content`：upsert 必填，为 ready-to-vector 文本；delete 可空
   - moment：动态正文 + 地点（Java 已拼好 `正文 地点：xxx`）
   - photo：相册名 + 照片描述（Java 已拼好 `相册名 描述`）
+  - note：笔记标题 + 抽取出的正文（Java 已拼好 `标题\n正文`）
 - `scope` / `scope_id`：数据域
   - `couple`：情侣共享（动态/相册）→ Python 侧 namespace `moment_c{coupleId}`
   - `personal`：个人私有（笔记）→ Python 侧 namespace `note_u{userId}`
@@ -142,7 +148,54 @@ Java 侧兜底（Python 不必实现）：宕机/拒连 → `UNREACHABLE`；超�
 
 ---
 
-## 3. GET /v1/health —— 探活
+## 3. POST /v1/summarize —— 内容摘要（普通 JSON）
+
+**用途**：学习笔记模块的「生成摘要」按钮。Java 把笔记正文发过来，Python 返回一段摘要文本。
+**触发时机**：**用户在页面上手动点击**（不自动触发），因此可以慢一些。
+
+### 3.1 请求
+
+```
+POST {agent.url}/v1/summarize
+Header: Content-Type: application/json
+        X-Agent-Key: <key>
+```
+
+```json
+{
+  "trace_id": "a1b2c3d4e5f60718",
+  "user_id": 1,
+  "note_id": 3,
+  "title": "Redis 学习笔记",
+  "content": "抽取出的笔记正文全文"
+}
+```
+
+- `content`：**完整正文**（Java 侧抽取上限 20 万字）。**Python 侧需自行处理超长输入**（截断 / 分段 map-reduce），Java 不做裁剪。
+- `title` 可用于让摘要更贴合主题，也可忽略。
+
+### 3.2 响应
+
+成功（HTTP 200）：
+
+```json
+{ "code": 0, "message": "success", "data": { "summary": "这篇笔记主要讲了……" } }
+```
+
+- `data.summary` **必填且非空白**：Java 会校验，空白视为失败。
+- 建议长度 100–300 字（Java 侧不限制，但前端卡片只显示两行）。
+- 失败时请返回 **4xx/5xx**；若返回 200 但 `code != 0`，Java 也会按失败处理。
+
+### 3.3 Java 侧行为
+
+- 超时：连接 3s、读 60s、整体 60s（比对话更宽）。
+- 与 `/v1/chat` **共用熔断计数**：连续 5 次失败 → 30s 熔断。
+- **失败不写库**：Java 只在成功时把摘要落到 `note.summary_ai`，并把失败原因转成 503 返回给前端。
+  这样能避免把「服务不可用」这类提示当成摘要存下来。
+
+---
+
+## 4. GET /v1/health —— 探活
 
 ```
 GET {agent.url}/v1/health
@@ -154,7 +207,7 @@ Java 目前不主动轮询 health，仅靠调用结果判定；本接口供人�
 
 ---
 
-## 4. 错误码表（非 SSE 接口）
+## 5. 错误码表（非 SSE 接口）
 
 与 Java `Result` 语义对齐：
 
@@ -170,7 +223,7 @@ SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/
 
 ---
 
-## 5. 数据域与命名空间总览（Python 侧隔离设计）
+## 6. 数据域与命名空间总览（Python 侧隔离设计）
 
 | 业务 | biz_type | scope | scope_id | namespace 建议 |
 |---|---|---|---|---|
@@ -185,7 +238,7 @@ SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/
 
 ---
 
-## 6. Java 侧灰度与默认
+## 7. Java 侧灰度与默认
 
 - `agent.enabled`（默认值以 `application.yml` 为准：**`true`**；`AgentProperties` 字段默认值为 `false`，仅在无 yml 绑定时生效。Docker 部署的 `.env` 默认设为 `false`）：ingest 静默跳过；`/v1/chat` 直接返回"AI 助手尚未启用"
 - `agent.url`：默认 `http://localhost:8001`
@@ -193,7 +246,7 @@ SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/
 - 环境变量：`AGENT_ENABLED` / `AGENT_URL` / `AGENT_KEY`
 - 仅以上三个 `agent.*` 配置键（无 `agent.timeout` / `agent.retry` 等）
 
-## 7. 实现与本文档的已知偏差（以代码为准）
+## 8. 实现与本文档的已知偏差（以代码为准）
 
 | 项 | 本文档原描述 | 代码实际 |
 |---|---|---|
@@ -206,9 +259,10 @@ SSE 接口无 body-code，错误用 `{"error":...}` 事件或由 Java 侧超时/
 | `agent.enabled` 默认 | `false` | `application.yml` 为 `true`（`.env`/compose 中为 `false`） |
 | 增量字段名 | 全程 `content` | Python→Java 为 `content`，Java→前端为 `delta`（见 §2.2 对照表） |
 
-## 8. 变更记录
+## 9. 变更记录
 
 | 时间 | 变更 |
 |---|---|
 | 2026-09-22 | 初版定稿（三接口 + SSE 事件格式 + 域规范） |
-| 2026-09-29 | 依据代码核对更新：修正幂等键/失败判定/重试/超时/错误类型/默认值与增量字段名，新增 §7 偏差说明与 §2.2 字段命名对照 |
+| 2026-09-29 | 依据代码核对更新：修正幂等键/失败判定/重试/超时/错误类型/默认值与增量字段名，新增 §8 偏差说明与 §2.2 字段命名对照 |
+| 2026-10-01 | 新增 **§3 `/v1/summarize`** 内容摘要接口（学习笔记手动生成摘要），后续章节顺延 |

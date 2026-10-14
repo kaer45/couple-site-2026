@@ -1,13 +1,13 @@
 # 从 0 到 1 开发路线图：双人情侣互动网站
 
-> 参考开源项目：EchoMap（架构分层）、情侣小窝（功能设计）。本文给出完整落地路径，本项目代码已按此路线实现到 **阶段 5**（部署方案就绪），**阶段 6 的扩展功能已落地三项**（实时聊天、纪念日提醒、每日待办），其余仍在规划。
+> 参考开源项目：EchoMap（架构分层）、情侣小窝（功能设计）。本文给出完整落地路径，本项目代码已按此路线实现到 **阶段 5**（部署方案就绪），**阶段 6 的扩展功能已落地五项**（实时聊天、纪念日提醒、每日待办、AI 助手、学习笔记），其余仍在规划。
 
 ## 总览
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
 | 1 | 需求确认与技术选型 | ✅ 完成 |
-| 2 | 数据库设计 | ✅ 完成（`sql/init.sql`，11 张表） |
+| 2 | 数据库设计 | ✅ 完成（`sql/init.sql`，12 张表） |
 | 3 | 后端开发（认证/动态/纪念日/相册/上传） | ✅ 完成（`backend/`） |
 | 4 | 前端开发（页面/组件/状态管理） | ✅ 完成（`frontend/`） |
 | 5 | 联调与部署（Docker Compose） | ✅ 方案就绪（`docker-compose.yml` + `docs/deploy.md`） |
@@ -68,6 +68,7 @@ file/          FileStorageService 接口 + 本地实现 (上传，图片/视频 
 chat/          WebSocket 聊天 (ChatWsHandler/握手拦截器) + REST(历史/增量/已读/未读)
 agent/         AgentClient/AgentChatClient (Java ↔ Python 向量同步与 SSE 对话)
 todo/          Todo 模块 (个人每日待办，today-view 四分组)
+note/          Note 模块 (学习笔记：md/txt/docx 上传、纯文本抽取、搜索)
 ```
 
 **认证流程（Spring Security + JWT，无状态）**
@@ -100,7 +101,7 @@ stores/        user.js(token/userInfo/partner/couple)  notification.js(未读红
 router/        路由 + 登录守卫
 layout/        Layout.vue 侧边栏布局 + 顶部通知铃铛 + 头像上传
 views/         Login / Register / Bind / Home(时间轴) / Anniversary / Album / AlbumDetail
-               Chat(悄悄话) / AiChat(AI 助手) / Todo(每日待办) / Notification(通知)
+               Chat(悄悄话) / AiChat(AI 助手) / Todo(每日待办) / Note(学习笔记) / Notification(通知)
 components/    MomentCard(动态卡片)、EmptyState(空态) 等
 ```
 
@@ -143,7 +144,8 @@ components/    MomentCard(动态卡片)、EmptyState(空态) 等
 | 实时聊天 | ✅ 已实现 | 原生 WebSocket `/ws/chat` + REST 历史/增量/已读；幂等键防重、断线重连补增量 | `chat_message` / `chat_read` 表、无状态 JWT 适配握手 |
 | 纪念日提醒 | ✅ 已实现 | 每天 08:00 定时任务，`remind_days` 命中即发站内通知；`reminder_log` 唯一键防重 | `anniversary.remind_days` 字段 |
 | 每日待办 | ✅ 已实现（形态调整） | 原计划"情侣任务打卡"，实际先落地**纯个人待办**（`user_id` 隔离，伴侣不可见），四分组聚合视图 | `user_todo` 表、Controller-Service-Mapper 分层 |
-| AI 助手 / 语义检索 | ✅ 已实现（需 Python 服务） | Java 侧 ingest 同步动态与照片向量 + SSE 对话透传，含超时/熔断/降级；契约见 `docs/agent-api.md` | `agent` 模块 + `IngestEvent` 事件 |
+| 学习笔记 | ✅ 已实现 | 上传 `.md`/`.txt`/`.docx`，抽取纯文本入库供搜索与 AI 检索；原文件可下载；解析失败不阻断上传。正对应契约里预留的 `biz_type=note` / `scope=personal` / `note_u{userId}` | `note` 表、`IngestEvent` 通道、`FileStorageService.storeDocument()` |
+| AI 助手 / 语义检索 | ✅ Java 侧 / ✅ Python 核心 / ⏳ 图谱 | Java 侧全部就绪（ingest 同步动态 / 照片 / 学习笔记向量 + SSE 对话透传 + `/v1/summarize` 摘要调用，含超时 / 熔断 / 降级，已改真流式）。Python 侧 `agent-service/` 已实现四接口 + 向量检索 + SQLite 多轮会话 + 离线 mock 开关，基于 `hello-agents 0.2.9`。**Neo4j 实体/关系抽取未实现**。契约 `docs/agent-api.md`，施工 `docs/agent-service-build-guide.md`，实现 `agent-service/README.md` | `agent` 模块 + `IngestEvent` 事件 |
 | 情侣任务打卡 | ⏳ 未实现 | `task`/`task_record` 表 + 打卡接口 + 首页卡片（共享任务，区别于个人待办） | 表结构（init.sql 注释）、分层规范 |
 | 积分商城 | ⏳ 未实现 | `point_record` 表 + 积分增减服务 + 兑换接口 | 表结构、Result 统一规范 |
 | 相册换 OSS | ⏳ 未实现 | 新增 `OssFileStorageServiceImpl`，上传时直传/服务端签名 | `FileStorageService` 接口抽象 |

@@ -21,6 +21,7 @@
 | 悄悄话（聊天） | WebSocket 实时双人聊天：图片消息、已读位点、未读红点、断线重连补增量；`@bot` 开头召唤 AI |
 | AI 助手 | 独立页面 SSE 流式对话，基于情侣共享数据（动态/相册）语义检索 |
 | 每日待办 | **纯个人数据**，按"逾期/今天/将来/今日完成"四分组聚合 |
+| 学习笔记 | **纯个人数据**，上传 `.md` / `.txt` / `.docx` 笔记，自动抽取正文用于搜索与 AI 检索，支持下载原文件 |
 | 站内通知 | 顶部铃铛红点 + 通知页，单条已读与全部已读；当前来源为纪念日提醒定时任务 |
 
 **技术栈**：
@@ -29,7 +30,7 @@
 |----|------|
 | 后端 | Java 17 · Spring Boot 3.3.5 · Spring Security + JWT（jjwt 0.12.6，HS256）· Spring WebSocket · WebClient/WebFlux（SSE）· MyBatis-Plus 3.5.7 · MySQL 8.0 · Lombok |
 | 前端 | Vue 3（组合式 API）· Vite 5 · Element Plus 2.7 · Pinia · Vue Router 4 · Axios · dayjs |
-| AI（可选） | Python Agent 服务：`/v1/ingest`（向量同步）、`/v1/chat`（SSE 对话）、`/v1/health` |
+| AI（可选） | Python Agent 服务（`agent-service/`）：`/v1/ingest`（向量同步）、`/v1/chat`（SSE 对话）、`/v1/summarize`（内容摘要）、`/v1/health`（探活）。技术栈：FastAPI + **hello-agents 0.2.9** + Qdrant + SQLite。⏳ Neo4j 知识图谱未实现 |
 | 部署 | Docker Compose（MySQL 8.0 + Backend + Nginx），单机可跑，数据卷持久化 |
 
 **开发进度**（对照 `docs/roadmap.md`）：阶段 1~5 全部完成；阶段 6 扩展功能已落地 **4 项**（实时聊天、纪念日提醒、每日待办、AI 助手），其余 4 项（情侣任务打卡、积分商城、OSS、农历）仍在规划。
@@ -56,8 +57,16 @@ couple-site/
 │   ├── dist/                # 生产构建产物（已 gitignore，存在说明构建验证过）
 │   └── src/                 # api/stores/router/layout/views/components/utils
 ├── sql/
-│   ├── init.sql             # 建库建表脚本（11 张表 + 末尾注释预留扩展表）
-│   └── fix_comment.sql      # 历史修复：补齐表/字段注释
+│   ├── init.sql             # 建库建表脚本（12 张表 + 末尾注释预留扩展表）
+│   ├── fix_comment.sql      # 历史修复：补齐表/字段注释
+│   └── migration-*.sql      # 增量迁移脚本（已有库升级用；init.sql 只在空数据卷执行）
+├── agent-service/           # Python Agent 服务（FastAPI + hello-agents 0.2.9 + Qdrant + SQLite）
+│   ├── requirements.txt     # hello-agents==0.2.9 / fastapi / uvicorn / pydantic-settings / qdrant-client / neo4j
+│   ├── .env.example         # 配置模板（LLM_* / DASHSCOPE_* / QDRANT_* / AGENT_MOCK）
+│   ├── README.md            # 启动、mock 模式、降级矩阵、排错
+│   ├── run.py               # 启动入口
+│   ├── tests/               # test_core（纯逻辑 17 项）/ smoke_api（契约端到端 36 项）/ check_framework_api（框架假设 29 项）
+│   └── app/                 # main / config / logging_conf / core / schemas / api / services / db / prompts
 ├── docs/
 │   ├── api-contract.md      # ⭐ 前后端 API 契约（唯一基准，含 WS 与 SSE）
 │   ├── agent-api.md         # ⭐ Java ↔ Python Agent 服务契约
@@ -95,7 +104,7 @@ couple-site/
 │ Security 过滤链 → JwtAuthenticationFilter(解析 Bearer Token) │
 │ WebSocket: /ws/chat ← ChatHandshakeInterceptor(?token= 鉴权) │
 │ Controller: auth/moment/anniversary/notification/album/file  │
-│             /chat /agent /todo /test(dev)                    │
+│             /chat /agent /todo /note /test(dev)              │
 │ Service 层: 业务逻辑 + 事务 + 情侣码生成 + 提醒判定            │
 │ Mapper 层: MyBatis-Plus 单表 CRUD / QueryWrapper / @Select    │
 │ 定时任务:  AnniversaryReminderTask（每天 08:00 发站内通知）   │
@@ -104,7 +113,7 @@ couple-site/
 └──────────┬───────────────────────────────┬──────────────────┘
            ▼                               ▼
   MySQL 8.0 (couple 库, utf8mb4)   Python Agent (可选, 内网 :8001)
-  11 张业务表 + 预留扩展表注释       /v1/ingest  /v1/chat(SSE)  /v1/health
+  12 张业务表 + 预留扩展表注释       /v1/ingest  /v1/chat(SSE)  /v1/health
 ```
 
 ### 3.2 认证与数据隔离设计
@@ -120,7 +129,7 @@ couple-site/
 
 ---
 
-## 4. 数据模型（sql/init.sql，11 张表）
+## 4. 数据模型（sql/init.sql，12 张表）
 
 | # | 表 | 作用 | 关键字段 / 约束 |
 |---|----|------|------------------|
@@ -135,6 +144,7 @@ couple-site/
 | 9 | `user_todo` | 个人待办 | `user_id`、`title`、`done`、`priority`、`due_date`(空=未排期)、`completed_at`；索引 `(user_id, due_date)` |
 | 10 | `chat_message` | 聊天消息 | `couple_id`、`sender_id`、`type`(TEXT/IMAGE/AGENT)、`content`、`bot_flag`、`client_msg_id`；`UNIQUE(couple_id, client_msg_id)` |
 | 11 | `chat_read` | 聊天已读位点 | 主键 `(couple_id, user_id)`、`last_read_message_id`（一人一行，未读数=对方的、id 大于位点的条数） |
+| 12 | `note` | 学习笔记（个人） | `user_id`、`title`、`format`(MD/TXT/DOCX)、`original_url`、`file_size`、`content_text`(抽取正文)、`parse_status`/`parse_error`、**`summary_ai`/`summary_ai_at`**(AI 摘要)；`FULLTEXT … WITH PARSER ngram`（预留） |
 
 **预留扩展表**（`init.sql` 末尾以注释存在，启用时取消注释即可）：`task` / `task_record`（情侣任务打卡）、`point_record`（积分商城）。
 
@@ -143,7 +153,9 @@ couple-site/
 - "在一起 X 天"口径 = `couple.start_date` 到今天的 `ChronoUnit.DAYS` 差值；
 - 纪念日"下一次到达" = 把月-日套到今年，已过则套到明年（`2/29` 非闰年退化为 `2/28`）；
 - 相册封面 = 手动封面优先，否则取最新一张**图片**（跳过视频）；删除封面照片后回退为最新图片并恢复自动模式；
-- 聊天用"已读位点"而非逐条已读表，`chat_read` 恒定一人一行，未读数计算 O(1) 定位 + 一次 count。
+- 聊天用"已读位点"而非逐条已读表，`chat_read` 恒定一人一行，未读数计算 O(1) 定位 + 一次 count；
+- 学习笔记**双存**：`original_url` 存原文件（供查看/下载），`content_text` 存抽取出的纯文本（供关键词搜索与 AI 检索）；
+- 笔记解析失败**不阻断上传**：`parse_status=2` + `parse_error` 记录原因，原文件照常可下载，只是不参与搜索与向量同步。
 
 ---
 
@@ -163,6 +175,7 @@ couple-site/
 | `chat/` | `ChatController/Service(Impl)`、`ChatWsHandler`、`ChatHandshakeInterceptor`、`WebSocketConfig` + DTO + entity + mapper | REST(历史/增量/已读/未读) + WebSocket 广播 + 90s 心跳踢连接 + `agent/AgentChatService`(@bot 异步调 Agent 并落库) |
 | `agent/` | `AgentClient`、`AgentChatClient`、`AgentConfig`、`AgentProperties`、`IngestEvent`、`IngestEventListener` | 向量同步 ingest（AFTER_COMMIT + @Async + 重试）+ 对话 SSE 客户端（超时/熔断/降级）+ 专用线程池 |
 | `todo/` | `TodoController/Service(Impl)` + DTO + entity + mapper | 个人每日待办（today-view 四分组聚合、CRUD、全量覆盖更新） |
+| `note/` | `NoteController/Service(Impl)`、**`NoteTextExtractor`**、`NoteFormat` + DTO + entity + mapper | 学习笔记（md/txt/docx 上传、纯文本抽取、分页搜索、重命名、删除；发布 `note` 类 IngestEvent） |
 
 **分层规范**：一律 `Controller → Service(接口+Impl) → Mapper`；单表 CRUD 用 MyBatis-Plus 零 XML，复杂查询用 `LambdaQueryWrapper` / `@Select`；业务错误抛 `BusinessException(code, msg)`，由全局异常处理器统一转为 JSON（`code` 直接作为 HTTP 状态码，因此业务"不存在/无权"表现为 404）。
 
@@ -182,7 +195,7 @@ couple-site/
 | `stores/` | `user.js`、`notification.js` | 用户/伴侣/关系状态；通知未读红点 |
 | `router/index.js` | 路由 + 全局前置守卫 | 需登录页无 token → 跳 /login 带 redirect；已绑定用户访问 login/register/bind → 回首页 |
 | `layout/Layout.vue` | 侧边栏布局 | 主导航（时间轴/纪念日/悄悄话/AI 助手/相册/每日待办）+ 顶部通知铃铛 + 头像上传弹窗 + 聊天未读 15s 轮询 |
-| `views/` | `Home`(时间轴) `Login` `Register` `Bind` `Anniversary` `Album` `AlbumDetail` `Chat` `AiChat` `Todo` `Notification` | 11 个页面 |
+| `views/` | `Home`(时间轴) `Login` `Register` `Bind` `Anniversary` `Album` `AlbumDetail` `Chat` `AiChat` `Todo` `Note` `Notification` | 12 个页面 |
 | `components/` | `MomentCard.vue` `EmptyState.vue` | 动态卡片、空态占位 |
 | `styles/index.css` | 全局样式 | — |
 
@@ -201,7 +214,7 @@ couple-site/
 
 **AI 助手页（AiChat.vue）**：用 `fetch` + `ReadableStream` 手工解析 SSE（而非 `EventSource`，因为需要 POST 请求体与 Authorization 头），会话历史存 localStorage（key `ai-chat-{userId}`），不落库。
 
-**路由清单**：`/login` `/register` `/bind`(需登录) `/`(首页时间轴) `/anniversaries` `/chat`(悄悄话) `/ai`(AI 助手) `/albums` `/albums/:id` `/todos` `/notifications`，未知路径兜底回首页。
+**路由清单**：`/login` `/register` `/bind`(需登录) `/`(首页时间轴) `/anniversaries` `/chat`(悄悄话) `/ai`(AI 助手) `/albums` `/albums/:id` `/todos` `/notes`(学习笔记) `/notifications`，未知路径兜底回首页。
 
 ---
 
@@ -229,6 +242,10 @@ couple-site/
 | todos | GET | `/api/todos/today-view` | 仅需登录（个人数据） |
 | todos | POST | `/api/todos` | 仅需登录 |
 | todos | PUT/DELETE | `/api/todos/{id}` | 仅需登录（归属校验，越权 404） |
+| notes | GET | `/api/notes?current&size&keyword` | 仅需登录（个人数据，列表不含正文） |
+| notes | GET | `/api/notes/{id}` | 仅需登录（含抽取出的正文） |
+| notes | POST | `/api/notes` | 仅需登录（multipart：file + 可选 title，md/txt/docx ≤10MB） |
+| notes | PUT/DELETE | `/api/notes/{id}` | 仅需登录（改标题 / 删除原文件与向量） |
 | albums | GET/POST | `/api/albums` | 需登录 + 已绑定 |
 | albums | PUT/DELETE | `/api/albums/{id}` | 需登录 + 已绑定 |
 | albums | GET | `/api/albums/{id}` | 需登录 + 已绑定（仅本情侣） |
@@ -237,6 +254,7 @@ couple-site/
 | albums | PUT | `/api/albums/{id}/cover` | 需登录 + 已绑定（设置手动封面） |
 | albums | DELETE | `/api/albums/{id}/photos/{photoId}` | 仅上传者（403） |
 | files | POST | `/api/files/upload` | 需登录（multipart，image/* 或 video/*，≤200MB） |
+| files | POST | `/api/notes`（笔记专用上传，见上） | 需登录（扩展名白名单，≤10MB，校验 docx ZIP 魔数） |
 | chat | GET | `/api/chat/messages?beforeId&size` | 需登录 + 已绑定（游标分页） |
 | chat | GET | `/api/chat/messages/after?afterId&limit` | 需登录 + 已绑定（增量补齐） |
 | chat | PATCH | `/api/chat/read` | 需登录 + 已绑定（上报已读位点） |
@@ -286,7 +304,7 @@ WebSocket 握手 ──► ChatHandshakeInterceptor 取 ?token= ──► 校验
   ──► 广播 MessageVO 给本情侣全部在线连接（含发送者）
   ──► 若 content.trim() 以 @bot 开头：
         @Async 调 Python /v1/chat（scope=couple, session=couple{coupleId}）
-        增量经 AGENT_STREAM 帧下发 ──► 完整回复落库(type=AGENT, botFlag=1) ──► 历史/重连可见
+        增量经 AGENT_STREAM 帧**边收边推** ──► 完整回复落库(type=AGENT, botFlag=1) ──► 历史/重连可见
 服务端心跳：每 30s 扫描，90s 无上行文本帧即关闭连接（4001 heartbeat timeout）
 ```
 
@@ -299,10 +317,27 @@ WebSocket 握手 ──► ChatHandshakeInterceptor 取 ?token= ──► 校验
   ──► 插入成功才发通知 ──► 该情侣下每人一条 notification ──► 前端铃铛红点
 ```
 
-### 8.6 向量同步（AI 检索的数据来源）
+### 8.6 学习笔记上传与解析
 
 ```
-业务写库（moment 发布/删除、photo 上传/改描述/删照片/删相册）
+前端 el-upload（自定义 http-request）──► POST /api/notes（multipart: file + 可选 title）
+  ──► 先把请求体整体读成字节（同一份字节用于落盘 + 解析）
+       ⚠️ 不能先落盘再读：transferTo() 写完会删掉容器临时文件
+  ──► 存储层校验：扩展名白名单(.md/.markdown/.txt/.docx) + ≤10MB + docx ZIP 魔数
+  ──► 落盘原始文件 ──► 返回 /uploads/yyyy/MM/dd/uuid.ext
+  ──► NoteTextExtractor 抽取纯文本（复用同一份字节）
+        ├─ MD/TXT：UTF-8 严格解码，失败退回 GBK（去 UTF-8 BOM）
+        └─ DOCX：ZIP 解包 word/document.xml，StAX 抽 w:t 文本节点
+  ──► 抽取成功：parse_status=1，写 content_text
+      抽取失败：parse_status=2 + parse_error，**上传仍算成功**（原文件可下载）
+  ──► 入库 ──► 解析成功才发 IngestEvent("note", id, 标题+正文, "personal", userId, "upsert")
+删除：删行 + 删磁盘文件 + IngestEvent(action="delete")
+```
+
+### 8.7 向量同步（AI 检索的数据来源）
+
+```
+业务写库（moment 发布/删除、photo 上传/改描述/删照片/删相册、note 上传/改标题/删除）
   ──► 发布 IngestEvent ──► IngestEventListener(@Async + AFTER_COMMIT) ──► AgentClient
   ──► POST {agent.url}/v1/ingest（X-Agent-Key），失败按 5s/30s 重试
 ```
@@ -354,7 +389,7 @@ HTTPS / 备份 / 迁移 / 常见故障见 `docs/deploy.md`。
 |----|------|
 | 后端代码 | ✅ 已编写，`backend/target` 存在（编译过） |
 | 前端代码 | ✅ 已编写，`frontend/dist` 存在（生产构建跑通过） |
-| 数据库 | ✅ `sql/init.sql` 建表脚本就绪（11 张表，已去重整理） |
+| 数据库 | ✅ `sql/init.sql` 建表脚本就绪（12 张表，已去重整理） |
 | 联调痕迹 | ✅ `backend/uploads/2026/09/**` 存在真实上传图片（含 09-10、09-11 等日期目录） |
 | 版本管理 | ✅ 已是 git 仓库，远端 `github.com/kaer45/couple-site-2026`，分支 `main` |
 | 文档 | ✅ README / API 契约 / Agent 契约 / 路线图 / 部署 / 本文档齐全 |
@@ -370,6 +405,13 @@ HTTPS / 备份 / 迁移 / 常见故障见 `docs/deploy.md`。
 | SSE 被 Nginx 缓冲 | `/api/agent/chat` 经普通 `/api/` 反代会被缓冲，AI 增量会攒着一次性下发 | 新增专用 location 并 `proxy_buffering off` |
 | SQL 表重复定义 | `chat_message` / `chat_read` 在 `init.sql` 中被定义两遍（前一处 `IF NOT EXISTS` + 后一处 `DROP` + `CREATE`），且前一处未读数注释写错 | 删除重复块，保留 `DROP` + `CREATE` 版本并按 1~11 重新编号，预留扩展表统一移到文件末尾（编号 12/13） |
 | Docker 未传 Agent 配置 | `docker-compose.yml` 与 `.env.example` 均无 `AGENT_*`，容器内只能吃代码默认值（`enabled=true` 却连不上 Python，持续打错误日志） | compose 增加 `AGENT_ENABLED`（默认 `false`）/`AGENT_URL`/`AGENT_KEY` 与 `extra_hosts: host.docker.internal`；`.env.example` 补齐说明 |
+| AI 回复为"假流式" | `AgentChatClient` 用 `collectList().block()` 把 Python 的 SSE 流**攒完才返回**，再一次性下发；每层都用了流式技术，用户看到的却是"等几秒 → 整段出现"，前端打字机逻辑形同装饰 | 改为 `doOnNext` + `.then()` + `onDelta` 回调边收边推；补 `publishOn(boundedElastic)` 把阻塞下发移出 Netty 事件循环；回调异常不再中断整条流。`AgentController` / `AgentChatService` 同步改为到达即下发，聊天失败时按"已推内容"落库（详见 `couple-site-self-learning-docs/2026-09-29/agent-streaming-refactor.md`） |
+| 缺少学习笔记模块 | 契约里早已预留 `biz_type=note` / `scope=personal` / 命名空间 `note_u{userId}`，但模块本身不存在；且 `FileStorageService.store()` 写死了 image/video，笔记文件会被拒 | 新增 `note` 模块（表 + 后端 + `Note.vue` 页面）与 `storeDocument()`；docx 解析**未引 POI** 而用 JDK 的 ZIP + StAX（本环境拉不到该依赖），取舍见 `docs/api-contract.md` §11.6 |
+| 笔记上传后一律"解析失败" | `NoteServiceImpl.upload()` 先 `storeDocument()`（内部 `transferTo`）再 `file.getBytes()`；而 `transferTo` 写完会**删除容器临时文件**，于是读内容必然 `FileNotFoundException`，被"解析失败不阻断上传"的 catch 吞掉，表现为"上传成功但解析失败" | 改为**先把内容读成字节**，同一份字节既落盘也解析；`storeDocument` 签名改为 `(byte[], String)` 彻底消除顺序依赖（已端到端复测 md/txt，含 GBK 编码回退） |
+| 笔记列表卡片一律显示"（无正文内容）" | 列表查询为省内存排除了 `content_text` 列，但 `summary` 正是从该列算出来的，于是永远为 null | 改为 `LEFT(content_text, 300) AS summary` 让数据库侧截取，映射到实体的非表字段 `summary`（`@TableField(exist = false)`）；已实测列表与关键词搜索均正常 |
+| docx 笔记切到"纯文本"再切回"渲染"变空白 | 抽屉用 `v-if/v-else` 切换视图，切走时销毁了 `<div ref="docxContainer">`，而 `renderDocx` 只在 `openDetail` 里调用 → 切回来只剩一个空容器 | 两个视图都改用 `v-show` 保持挂载（docx 渲染结果不再被销毁），并加一个 `watch(viewMode)` 兜底：容器为空时才补渲染 |
+| 笔记卡片显示原始 Markdown 语法 | 后端旧实现只折叠空白、未清洗语法，卡片里直接出现 `# trick`、`**标题**` | 改为后端只给**原始节选**（前 300 字，保留换行），前端新增 `renderExcerpt()` 用 markdown-it 解析后渲染：只取 inline 块（跳过代码块）、不硬截断（避免残缺标签）、丢图片、**软换行换成空格**（`breaks:true` 产生的 `<br>` 会与卡片的 `line-clamp` 打架）、**公式正常渲染 KaTeX**（初版曾为省体积保留 `$...$` 原文，实测效果就是"没渲染"，已改） |
+| 摘要只有"正文节选"一层 | 需求是「文档自身内容 + 大模型生成」两层，且大模型那层要可手动触发 | 新增 `note.summary_ai` / `summary_ai_at` + `POST /api/notes/{id}/summary`（同步调 Python `/v1/summarize`）；展示优先级 **AI 摘要 > 正文节选**；卡片上加「AI 摘要」标记；**失败绝不写库**，只返回 503 与具体原因。契约见 `docs/agent-api.md` §3 |
 
 ### 10.3 ⚠️ 仍存在、建议后续处理
 
@@ -384,6 +426,8 @@ HTTPS / 备份 / 迁移 / 常见故障见 `docs/deploy.md`。
 | `sql/init.sql` | `user_todo` 表段落的注释编号与"扩展预留"段落曾被混排 | 已在本次整理中重排；后续新增表请延续编号并保持 `DROP` + `CREATE` 风格 |
 | `backend/.../chat/WebSocketConfig.java` | `setAllowedOriginPatterns("*")` 允许任意 Origin 握手；token 走 query 会进入 Nginx/网关访问日志 | 生产建议收敛 Origin，并在反代层对 `token` 参数脱敏 |
 | `docker-compose.yml` | 未编排 Python Agent 服务（当前通过 `host.docker.internal` 访问宿主机） | 若长期使用，建议把 Python 服务也纳入 compose 并改用服务名互访 |
+| `backend/.../note/` | 学习笔记的正文抽取是**同步**执行的（在请求线程内），且列表搜索用 `LIKE '%kw%'`（不走 `note` 表的 ngram 全文索引） | 单篇 ≤10MB 时同步解析耗时可接受；若允许更大文件或并发上传，建议改为异步解析（复用 `agentExecutor`）+ 轮询 `parse_status`；数据量大后把搜索切到 `MATCH ... AGAINST` |
+| `frontend/src/views/Note.vue` | 正文以**纯文本**预览（`<pre>`），不做 Markdown 渲染 | 项目未引入 markdown 渲染库（`markdown-it` / `marked` 均不在 `node_modules`）。刻意不自己实现渲染器——手写 Markdown→HTML 极易引入 XSS。联网后 `npm i markdown-it` 并配合 sanitize 再启用渲染即可 |
 | 仓库根目录 | 存在 `test-body.json` 等调试残留（未跟踪） | 建议删除或加入 gitignore |
 
 ### 10.4 其他备注

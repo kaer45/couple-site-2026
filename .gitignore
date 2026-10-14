@@ -9,6 +9,14 @@ frontend/node_modules/
 frontend/dist/
 npm-debug.log*
 
+# ===== Python / Agent 服务 =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+# 注意：agent-service/.env 已被上面的 .env 规则覆盖；data/ 同理（SQLite、向量库快照）
+
 # ===== 运行时数据（MySQL 数据、上传文件，勿提交） =====
 data/
 .m2-repo/

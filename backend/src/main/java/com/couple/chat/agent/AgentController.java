@@ -43,20 +43,19 @@ public class AgentController {
         SseEmitter emitter = new SseEmitter(120_000L);
         agentExecutor.execute(() -> {
             try {
+                // 真流式：每收到一段增量就立刻 send，浏览器端即可逐字显示
                 AgentChatClient.ChatCallResult result = agentChatClient.call(
                         userId, coupleId, "user" + userId, request.getMessage(),
-                        "personal", userId);
+                        "personal", userId,
+                        delta -> send(emitter, Map.of("delta", delta)));
+
                 if (!result.isOk()) {
-                    emitter.send(SseEmitter.event().data(Map.of("error", AgentChatService.fallbackText(result.getErrorType()))));
-                } else {
-                    for (String delta : result.getDeltas()) {
-                        emitter.send(SseEmitter.event().data(Map.of("delta", delta)));
-                    }
-                    if (!result.getRefs().isEmpty()) {
-                        emitter.send(SseEmitter.event().data(Map.of("refs", result.getRefs())));
-                    }
+                    // 失败：补一条 error 事件（前端仅在正文为空时展示；已推过内容则保留已有内容）
+                    send(emitter, Map.of("error", AgentChatService.fallbackText(result.getErrorType())));
+                } else if (!result.getRefs().isEmpty()) {
+                    send(emitter, Map.of("refs", result.getRefs()));
                 }
-                emitter.send(SseEmitter.event().data("[DONE]"));
+                send(emitter, "[DONE]");
                 emitter.complete();
             } catch (Exception e) {
                 log.warn("/ai SSE 应答中断: {}", e.getMessage());
@@ -64,5 +63,14 @@ public class AgentController {
             }
         });
         return emitter;
+    }
+
+    /** 下发一个 SSE 事件；客户端中途断开会让 send 抛异常，吞掉即可，避免打断整条流 */
+    private void send(SseEmitter emitter, Object data) {
+        try {
+            emitter.send(SseEmitter.event().data(data));
+        } catch (Exception e) {
+            log.debug("/ai SSE 下发失败（客户端可能已断开）: {}", e.getMessage());
+        }
     }
 }

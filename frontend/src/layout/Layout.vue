@@ -44,6 +44,12 @@
           </el-icon>
           <span>每日待办</span>
         </el-menu-item>
+        <el-menu-item index="/notes">
+          <el-icon>
+            <Notebook />
+          </el-icon>
+          <span>学习笔记</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

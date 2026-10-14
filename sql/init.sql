@@ -208,10 +208,39 @@ CREATE TABLE `chat_read` (
   PRIMARY KEY (`couple_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天已读位置表';
 
+-- ------------------------------------------------------------
+-- 12. 学习笔记表 note（个人私有，伴侣不可见）
+--     原始文件存盘（original_url），另存抽取出的纯文本 content_text：
+--       - content_text 供关键词搜索 + AI 向量检索
+--       - 支持 .md / .markdown / .txt / .docx（docx 解析失败不影响原文件下载）
+--     AI 数据域：scope=personal、scope_id=user_id → 命名空间 note_u{userId}
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `note`;
+CREATE TABLE `note` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '笔记ID',
+  `user_id`       BIGINT UNSIGNED NOT NULL COMMENT '归属用户ID(个人私有,仅从JWT取)',
+  `title`         VARCHAR(200)  NOT NULL COMMENT '标题(默认取原文件名)',
+  `format`        VARCHAR(10)   NOT NULL COMMENT '格式(MD/TXT/DOCX)',
+  `original_name` VARCHAR(255)  DEFAULT NULL COMMENT '原始文件名(下载时用)',
+  `original_url`  VARCHAR(255)  NOT NULL COMMENT '原始文件URL(/uploads/...)',
+  `file_size`     BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '文件大小(字节)',
+  `content_text`  MEDIUMTEXT    DEFAULT NULL COMMENT '抽取的纯文本(供搜索/AI)',
+  `parse_status`  TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '解析状态(0=待解析,1=成功,2=失败)',
+  `parse_error`   VARCHAR(255)  DEFAULT NULL COMMENT '解析失败原因',
+  `summary_ai`    TEXT          DEFAULT NULL COMMENT 'AI生成的内容摘要(手动触发,优先于正文节选展示)',
+  `summary_ai_at` DATETIME      DEFAULT NULL COMMENT 'AI摘要生成时间',
+  `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_created` (`user_id`, `created_at` DESC),
+  -- 预留：中文全文检索索引（当前搜索用 LIKE，数据量大后可切 MATCH...AGAINST）
+  FULLTEXT KEY `ft_title_content` (`title`, `content_text`) WITH PARSER ngram
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学习笔记表';
+
 -- ============================================================
 -- 以下为扩展功能预留表（后续迭代再启用，可先不建）
 -- ============================================================
--- -- 12. 情侣任务打卡 task / task_record
+-- -- 13. 情侣任务打卡 task / task_record
 -- CREATE TABLE `task` (
 --   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `couple_id`   BIGINT UNSIGNED NOT NULL,
@@ -233,7 +262,7 @@ CREATE TABLE `chat_read` (
 --   UNIQUE KEY `uk_task_user_date` (`task_id`, `user_id`, `completed_date`)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务打卡记录表';
 --
--- -- 13. 积分记录 point_record（积分商城预留）
+-- -- 14. 积分记录 point_record（积分商城预留）
 -- CREATE TABLE `point_record` (
 --   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 --   `user_id`    BIGINT UNSIGNED NOT NULL,

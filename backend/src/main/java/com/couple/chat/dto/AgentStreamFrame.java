@@ -5,9 +5,9 @@ import lombok.Data;
 
 /**
  * Agent 回复流式帧（WS 下行，前端按 clientMsgId 匹配同气泡追加）
- * - 普通流：{type=AGENT_STREAM, clientMsgId, delta}，可多次
- * - 结束：   {type=AGENT_STREAM, clientMsgId, final=true, messageId}（正常）
- * - 错误：   {type=AGENT_STREAM, clientMsgId, final=true, error}（不再有 delta）
+ * - 普通流：{type=AGENT_STREAM, clientMsgId, delta, finalFrame=false}，可多次
+ * - 结束：   {type=AGENT_STREAM, clientMsgId, finalFrame=true, messageId}（正常）
+ * - 错误：   {type=AGENT_STREAM, clientMsgId, finalFrame=true, error}（本轮无内容时才有 error）
  */
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)

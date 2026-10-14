@@ -43,6 +43,38 @@ vim .env   # 修改 MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / JWT_SECRET 三个必�
 
 > **AI 助手（可选）**：如需启用 Python Agent，在 `.env` 中把 `AGENT_ENABLED` 改为 `true`，并设置 `AGENT_KEY`（须与 Python 端 `X-Agent-Key` 一致）。后端容器通过 `extra_hosts` 映射的 `host.docker.internal` 访问宿主机上的 Python 服务（默认 `8001` 端口）。**未部署 Python 服务时请保持 `AGENT_ENABLED=false`**，否则 `/api/agent/chat` 与聊天内 `@bot` 只会返回降级文案并持续打错误日志。
 
+### 3.1 部署 Python Agent 服务（可选）
+
+AI 能力（检索问答、内容摘要）由仓库内 `agent-service/` 提供，**不在 compose 编排里**，
+需要单独在宿主机上起。技术栈：FastAPI + **hello-agents 0.2.9** + Qdrant + SQLite
+（Neo4j 知识图谱尚未实现，见 `docs/agent-service-build-guide.md`）。
+
+```bash
+cd agent-service
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+vim .env      # 填 LLM_API_KEY(DeepSeek) / DASHSCOPE_API_KEY / AGENT_KEY
+python run.py                    # 监听 0.0.0.0:8001
+```
+
+它的两个外部依赖由 compose 提供（`qdrant` 必需；`neo4j` 为下一轮图谱预留）：
+
+```bash
+docker compose up -d qdrant neo4j
+```
+
+启动后用 `curl -H "X-Agent-Key: <你的key>" http://127.0.0.1:8001/v1/health` 确认，
+`data.degraded` 与 `data.components` 会告诉你哪个依赖没就绪。
+
+> 注意三点：
+> 1. Python 服务的 `AGENT_KEY` 必须与后端 `.env` 里的 `AGENT_KEY` 完全一致，否则所有调用都会 401。
+> 2. 服务**不会因为依赖不可用而启动失败**（按能力降级）：Qdrant / 嵌入模型不可用时只有
+>    `/v1/ingest` 与向量检索受影响，`/v1/chat`、`/v1/summarize` 照常工作。但**单次请求内的
+>    失败一定返回非 200** —— 因为 Java 对 ingest 只看 HTTP 状态码（契约 §1.2）。
+> 3. 嵌入模型**不做静默降级**（不使用 hello-agents 的 TF-IDF 回退链），
+>    否则会往同一向量集合写入不同维度的向量，导致检索静默失效。
+
 ## 4. 构建并启动
 
 ```bash

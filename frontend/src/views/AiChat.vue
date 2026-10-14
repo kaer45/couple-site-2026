@@ -25,7 +25,9 @@
           <div class="ai-msg-avatar">{{ m.role === 'user' ? '我' : '🤖' }}</div>
           <div class="ai-msg-content">
             <div class="ai-bubble">
-              <span>{{ m.content }}<span v-if="m.role === 'assistant' && m.loading" class="cursor">▍</span></span>
+              <!-- 用户输入与 AI 输出统一按 Markdown 渲染 -->
+              <div class="markdown-body" v-html="renderMarkdown(m.content)" />
+              <span v-if="m.role === 'assistant' && m.loading" class="cursor">▍</span>
             </div>
             <!-- 引用出处 -->
             <div v-if="m.refs && m.refs.length" class="ai-refs">
@@ -63,6 +65,7 @@ import { nextTick, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import * as agentApi from '@/api/agent'
+import { renderMarkdown } from '@/utils/markdown'
 
 const userStore = useUserStore()
 const msgListRef = ref()
@@ -313,6 +316,11 @@ onMounted(() => {
 .ai-msg.user .ai-bubble {
   background: linear-gradient(135deg, #ffd9e4, #f7b6ca);
   border-color: transparent;
+}
+
+/* AI 输出渲染成 markdown 后去掉 pre-wrap（否则 HTML 源码里的换行会变成额外空行） */
+.ai-bubble .markdown-body {
+  white-space: normal;
 }
 
 .cursor {

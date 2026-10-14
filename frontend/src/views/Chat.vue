@@ -39,7 +39,11 @@
                   <span v-else class="msg-img-broken">🖼️ 图片已删除</span>
                 </template>
                 <template v-else-if="m.content">
-                  <span v-if="m.type === 'AGENT'">{{ m.content }}<span v-if="!m.done" class="cursor">▍</span></span>
+                  <template v-if="m.type === 'AGENT'">
+                    <!-- AI 回答按 Markdown 渲染（标题/列表/代码/公式），流式期间光标追加在末尾 -->
+                    <div class="markdown-body" v-html="renderMarkdown(m.content)" />
+                    <span v-if="!m.done" class="cursor">▍</span>
+                  </template>
                   <span v-else>{{ m.content }}</span>
                 </template>
               </div>
@@ -53,9 +57,11 @@
           </div>
         </div>
 
-        <!-- 有新消息浮条 -->
+        <!-- 回到最底部：不在底部时显示（有新消息优先提示） -->
         <transition name="el-fade-in">
-          <div v-if="showNewFloat" class="chat-new-float" @click="scrollToBottom()">有新消息 ↓</div>
+          <div v-if="!atBottom" class="chat-new-float" @click="scrollToBottom()">
+            {{ showNewFloat ? '有新消息 ↓' : '回到最底部 ↓' }}
+          </div>
         </transition>
 
         <!-- 图片放大查看：支持 ←/→ 切换本次会话中的其他图片 -->
@@ -110,6 +116,7 @@ import { Loading } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
 import * as chatApi from '@/api/chat'
+import { renderMarkdown } from '@/utils/markdown'
 
 const userStore = useUserStore()
 
@@ -120,6 +127,8 @@ const connected = ref(false)
 const reconnecting = ref(false)
 const loadingHistory = ref(false)
 const showNewFloat = ref(false)
+/** 是否在消息区底部（控制"回到最底部"按钮显隐） */
+const atBottom = ref(true)
 /** 图片放大查看器 */
 const imgViewerVisible = ref(false)
 const imgViewerIndex = ref(0)
@@ -381,11 +390,12 @@ function reportRead() {
 
 function afterNewMessage(m) {
   if (m.id == null || m.senderId === myId) return
-  // 不在底部 → 显示浮条；在底部 → 视为已读上报
+  // 不在底部 → 显示浮条（回到底部按钮文案变"有新消息"）；在底部 → 视为已读上报
   const nearBottom = isNearBottom()
   if (nearBottom) {
     reportRead()
   } else {
+    atBottom.value = false
     showNewFloat.value = true
   }
 }
@@ -397,7 +407,8 @@ function onScroll() {
   if (el.scrollTop < 60 && !loadingHistory.value) {
     loadOlder()
   }
-  if (isNearBottom()) {
+  atBottom.value = isNearBottom()
+  if (atBottom.value) {
     showNewFloat.value = false
   }
 }
@@ -411,6 +422,7 @@ function isNearBottom() {
 function scrollToBottom() {
   const el = msgListRef.value
   if (el) el.scrollTop = el.scrollHeight
+  atBottom.value = true
   showNewFloat.value = false
 }
 

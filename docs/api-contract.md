@@ -1,7 +1,7 @@
 # API 契约文档（前后端唯一基准）
 
 > 后端与前端必须严格遵循本契约。修改任何接口需同步更新本文件。
-> 覆盖范围：`/api/auth`、`/api/moments`、`/api/anniversaries`、`/api/albums`、`/api/files`、`/api/notifications`、`/api/todos`、`/api/chat`、`/ws/chat`、`/api/agent`。
+> 覆盖范围：`/api/auth`、`/api/moments`、`/api/anniversaries`、`/api/albums`、`/api/files`、`/api/notifications`、`/api/todos`、`/api/notes`、`/api/chat`、`/ws/chat`、`/api/agent`。
 > Java ↔ Python（AI Agent）的服务契约另见 `docs/agent-api.md`。
 
 ## 0. 通用约定
@@ -604,6 +604,8 @@ MessageVO：
 ```
 
 - 字段名确认为 `finalFrame`（不是 `final`）。
+- **边收边推**：服务端每从 Python 收到一段增量就立刻广播一帧，前端可逐字渲染。
+- 失败时的落库口径：若已推过部分内容，则**按已推内容落库**，且结束帧**不带 `error`**（用户看到什么就存什么）；一个字都没产出时，才落库降级文案并把该文案放进结束帧的 `error`。
 - 前端按 `(type==='AGENT' && clientMsgId===frame.clientMsgId)` 找到气泡并追加 `delta`；`finalFrame=true` 时用 `messageId` 回填真实 id 并结束；`error` 仅在气泡内容为空时作为内容展示。
 - 帧内 `clientMsgId` 是**服务端**生成的 UUID，与触发消息的 `clientMsgId` 无关。
 - 该帧同样广播给本情侣全部连接（触发者 + 伴侣），无定向投递。
@@ -615,7 +617,7 @@ MessageVO：
 3. 触发消息本身正常落库（`type=TEXT`、`botFlag=0`）并**先广播**双方，内容保留 `@bot` 原文。
 4. 然后异步（`@Async`，专用线程池 core 2 / max 8 / queue 200）调用 Python：
    `scope="couple"`、`scopeId=coupleId`、`sessionId="couple{coupleId}"`（一对情侣共享一个会话）。
-5. 回复通过 `AGENT_STREAM` 帧下发，并把**完整回复落库**为 `type=AGENT`、`botFlag=1`、`senderId=触发者` 的消息 → 历史/重连可见。
+5. 回复通过 `AGENT_STREAM` 帧**边收边推**，并把**完整回复落库**为 `type=AGENT`、`botFlag=1`、`senderId=触发者` 的消息 → 历史/重连可见。
 6. 降级文案（Python 不可用时）：
 
 | 场景 | 文案 |
@@ -664,6 +666,8 @@ Header: Content-Type: application/json
 
 `Content-Type: text/event-stream`；**所有事件都无 event 名**，只有 `data:` 行。SseEmitter 超时 120s。
 
+**真流式**：服务端每从 Python 收到一段增量就**立即**下发，不等全部生成完（`AgentChatClient` 以 `onDelta` 回调边收边推）。因此前端可以逐字渲染，`delta` 事件之间存在真实的时间间隔。
+
 ```
 data:{"delta":"我们上次"}
 data:{"delta":"去了大理。"}
@@ -673,7 +677,7 @@ data:[DONE]
 
 | 事件 | 说明 |
 |------|------|
-| `{"delta":"..."}` | 增量文本，可多次；前端顺序拼接 |
+| `{"delta":"..."}` | 增量文本，可多次，**边收边推**；前端顺序拼接 |
 | `{"refs":[...]}` | 引用出处，仅在非空时发一次；元素为 Python 返回原样（snake_case，前端取 `biz_type` / `title`） |
 | `{"error":"..."}` | 仅失败时一条，值为中文降级文案 |
 | `data:[DONE]` | 成功与降级**都必然发送**，前端据此结束 |
@@ -698,8 +702,134 @@ data:[DONE]
 
 超时与熔断：连接 3s、读 30s、整体 35s；连续 5 次失败熔断 30s（窗口过后放一次试探）。
 
-## 11. 扩展预留说明
+## 11. 学习笔记 `/api/notes`
+
+> **纯个人私有数据，按 `user_id` 硬隔离，伴侣不可见**；仅需登录，**不要求已绑定情侣**。
+> `user_id` 一律取自 JWT，前端**禁止**传。
+> 支持格式：`.md` / `.markdown` / `.txt` / `.docx`，单个文件 ≤ 10MB。
+
+NoteVO（列表项，不含正文）：
+
+```json
+{
+  "id": 3, "title": "Redis 学习笔记", "format": "MD",
+  "originalName": "redis.md", "originalUrl": "/uploads/2026/09/29/abc123.md",
+  "fileSize": 8421, "parseStatus": 1, "parseError": null,
+  "summary": "Redis 是单线程模型，但基于 IO 多路复用……",
+  "createdAt": "2026-09-29 15:20:00", "updatedAt": "2026-09-29 15:20:00"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| format | string | `MD` / `TXT` / `DOCX` |
+| parseStatus | number | `0`=待解析 `1`=成功 `2`=**失败**（原文件仍可下载，只是不参与搜索与 AI 检索） |
+| originalUrl | string | 原始文件地址，`GET /uploads/**` 可直接下载 |
+| summary | string\|null | **卡片摘要素材**：正文前 ~300 字的原始节选（保留换行与 Markdown 语法），由前端解析渲染；无正文时为 null |
+| summaryAi | string\|null | **AI 生成的内容摘要**；存在时前端优先展示它（卡片上带「AI 摘要」标记），未生成为 null |
+| summaryAiAt | string\|null | AI 摘要生成时间 |
+
+### 11.1 分页列表 `GET /api/notes?current=1&size=10&keyword=redis`
+
+- 按 `created_at` 倒序；`keyword` 可选，对**标题 + 正文**做模糊匹配。
+- 列表接口**不返回正文**（避免大字段传输）；卡片摘要按 `summaryAi` → `summary` 的优先级取用。
+
+响应 `data`：标准页码分页结构（见 §0）。
+
+### 11.2 笔记详情 `GET /api/notes/{id}`
+
+响应 `data`：在 NoteVO 基础上增加完整正文，并**不含** `summary`（节选）：
+
+```json
+{
+  "id": 3, "title": "Redis 学习笔记", "format": "MD",
+  "originalName": "redis.md", "originalUrl": "/uploads/2026/09/29/abc123.md",
+  "fileSize": 8421, "parseStatus": 1, "parseError": null,
+  "content": "Redis 是单线程模型……（完整纯文本）",
+  "summaryAi": "这篇笔记主要讲了……", "summaryAiAt": "2026-10-01 12:06:23",
+  "createdAt": "2026-09-29 15:20:00", "updatedAt": "2026-09-29 15:20:00"
+}
+```
+
+错误：404 `笔记不存在`（`id` 不存在**或不属于当前用户**）。
+
+### 11.3 上传笔记 `POST /api/notes`（multipart/form-data）
+
+字段：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `file` | 是 | `.md` / `.markdown` / `.txt` / `.docx`，≤ 10MB |
+| `title` | 否 | 标题，为空时取原文件名（去扩展名），超长截断到 200 字 |
+
+响应 `data`：NoteVO。
+
+**服务端行为**：
+1. 先把请求体**整体读成字节**（同一份字节既用于落盘、也用于解析）；
+   ⚠️ 顺序不可颠倒：`MultipartFile.transferTo()` 写完会**删除容器的临时上传文件**，先落盘再读必然 `FileNotFoundException`；
+2. 校验并落盘原始文件（扩展名白名单 + 大小 ≤10MB + `.docx` 校验 ZIP 魔数 `PK\x03\x04`，**不信任客户端 contentType**）；
+3. 抽取纯文本：md/txt 先按 UTF-8 严格解码、失败退回 GBK；docx 解包 `word/document.xml` 抽取文本；
+4. 抽取失败**不影响上传成功** —— 记 `parseStatus=2` 与 `parseError`，原文件照常可下载；
+5. 解析成功才发布 `IngestEvent("note", id, 标题+正文, "personal", userId, "upsert")` 同步向量库。
+
+错误：400 `仅支持 .md / .markdown / .txt / .docx 格式的笔记文件` / `笔记文件不能超过10MB` / `该文件不是有效的 .docx 文档`。
+
+### 11.4 修改标题 `PUT /api/notes/{id}`
+
+请求：`{ "title": "Redis 笔记（修订）" }`（必填，≤200 字）
+
+响应 `data`：NoteVO。正文来自原始文件，**不提供在线编辑**。改动标题后若正文解析成功会重新同步一次向量（标题参与检索文本）。
+
+### 11.5 删除笔记 `DELETE /api/notes/{id}`
+
+响应 `data`：`null`。同时删除磁盘原文件，并发布 `IngestEvent(..., "delete")` 清理向量数据。
+
+错误：404 `笔记不存在`。
+
+### 11.6 docx 解析与前端渲染的分工
+
+**服务端**（`content_text` 字段）：未引入 Apache POI，而是用 JDK 自带的 ZIP + StAX 抽取 `word/document.xml` 的文本节点。因此：
+
+- ✅ 段落、表格文字都能抽出（表格会被"拍平"成按行文本）；
+- ❌ 不解析页眉/页脚/脚注/批注（它们在别的 XML part 里），不保留样式、图片与排版；
+- ❌ 修订（track changes）中被删除的文本也会被包含。
+
+**前端**：详情页的"渲染"视图**不看 `content_text`**，而是用 `docx-preview` 直接拉取 `originalUrl` 指向的原始 `.docx` 渲染，因此能保留段落 / 表格 / 标题层级等真实排版；`content_text` 只服务于**关键词搜索**与 **AI 向量检索**（以及"纯文本"视图）。
+
+> 注意：`/uploads/**` 是公开静态路径（见 §0 放行规则），所以前端可以直接 fetch 原始文件。
+
+### 11.7 生成 AI 摘要 `POST /api/notes/{id}/summary`
+
+**手动触发**，无请求体。Java 会把笔记正文发给 Python 的 `/v1/summarize`，成功后写入 `summaryAi` 并返回更新后的**笔记详情**。
+
+响应 `data`：NoteDetailVO（同 11.2，此时带上了 `summaryAi` / `summaryAiAt`）。
+
+```
+POST /api/notes/3/summary
+→ 200 { "code":0, "message":"success", "data": { ..., "summaryAi": "这篇笔记主要讲了……",
+                                                  "summaryAiAt": "2026-10-01 12:06:23" } }
+```
+
+**行为与错误**：
+
+| 情况 | 结果 |
+|------|------|
+| 成功 | 200，写入 `summary_ai` + `summary_ai_at` |
+| 笔记无正文（`parseStatus != 1`） | 400 `该笔记没有可用的正文，无法生成摘要` |
+| Python 未启用（`AGENT_ENABLED=false`） | **503** `生成摘要失败：AI 能力未启用（AGENT_ENABLED=false）` |
+| Python 不可达 | **503** `生成摘要失败：AI 服务不可达，请确认 Python 服务已启动` |
+| Python 超时（>60s） | **503** `生成摘要失败：AI 服务响应超时` |
+| 笔记不存在 / 不属于当前用户 | 404 `笔记不存在` |
+
+> ⚠️ **失败时绝不写库**：否则会把「服务不可用」这类提示当成正常摘要存进 `summary_ai`，
+> 之后前端会把它当 AI 摘要展示，排查起来很困难。这一点是刻意设计的。
+
+- 该接口是**同步等待**的，后端整体超时 60s，因此前端调用时把 axios 超时单独放宽到 90s（见 `frontend/src/api/note.js`）。
+- 与 `/v1/chat` **共用熔断计数**（连续 5 次失败 → 30s 熔断）；熔断期间请求会直接返回 503 而不真正发起调用。
+- 重复调用即「重新生成」，会覆盖上一次的摘要。
+
+## 12. 扩展预留说明
 
 - 情侣任务打卡 / 积分商城的接口后续按同样风格追加，表结构已在 `sql/init.sql` 末尾以注释预留。
-- AI 向量同步的 `biz_type` 已预留 `note`（个人学习笔记）取值，但**当前没有任何发布点**，仅有 `moment` / `photo` 在用。
-- Java ↔ Python 的完整契约（`/v1/ingest`、`/v1/chat`、`/v1/health`）见 `docs/agent-api.md`。
+- AI 向量同步的 `biz_type` 现有 `moment` / `photo` / `note` 三个取值，其中 `note` 已由学习笔记模块正式发布。
+- Java ↔ Python 的完整契约（`/v1/ingest`、`/v1/chat`、`/v1/summarize`、`/v1/health`）见 `docs/agent-api.md`。

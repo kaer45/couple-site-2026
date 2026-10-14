@@ -75,6 +75,12 @@ const routes = [
         meta: { title: '每日待办', requiresAuth: true }
       },
       {
+        path: 'notes',
+        name: 'notes',
+        component: () => import('@/views/Note.vue'),
+        meta: { title: '学习笔记', requiresAuth: true }
+      },
+      {
         path: 'notifications',
         name: 'notifications',
         component: () => import('@/views/Notification.vue'),
