@@ -6,8 +6,33 @@
   box-sizing: border-box;
 }
 
+/* ================= 设计 token =================
+   详见 docs/color-refactor-plan.md（v1.1）。组织顺序：
+     1. 文字层级（唯一来源，第 5 节引用它，避免两处维护）
+     2. 品牌主色（粉色基调，保持不变）
+     3. 语义色 success / warning / danger / error / info —— 接管 EP 内置的冷色
+     4. 自定义 accent（AI / 强调；刻意不占用 EP 的 info 角色）
+     5. 结构层：文字 / 边框 / 填充 / 背景
+
+   色阶生成公式（勿手调，EP 官方 SCSS 也是这么算的）：
+     light-N = base × (1 − N/10) + white × (N/10)      N ∈ {3,5,7,8,9}
+     dark-2  = base × 0.8 + black × 0.2
+   Element Plus 2.7.6 只定义 light-3/5/7/8/9 + dark-2，没有 light-1/2/4/6。
+
+   三档用途约束（重要）：
+     light-9 (soft)  → 只能作背景底，禁止承载文字
+     base            → 描边 / 图标 / 大字号，禁止作正文
+     dark-2 (strong) → 正文文字，须 ≥4.5:1（注释里标了实测对比度）
+   ============================================== */
 :root {
-  /* 覆盖 Element Plus 主题色为粉色暖色系 */
+  /* ---------- 1. 文字层级：19 个近似灰棕 → 5 档 ---------- */
+  --text-strong: #4a3b43;    /* 标题、数据      白底 10.51:1 */
+  --text-main: #5c4a52;      /* 正文            白底  8.21:1 */
+  --text-secondary: #7d6a74; /* 说明、时间戳    白底  5.02:1 */
+  --text-weak: #a08b97;      /* 仅占位符        白底  3.17:1（不可用于内容性文字）*/
+  --text-disabled: #c9b6bf;  /* 禁用态          无对比度要求 */
+
+  /* ---------- 2. 品牌主色（保持不变）---------- */
   --el-color-primary: #ec6a8f;
   --el-color-primary-light-3: #f18aa6;
   --el-color-primary-light-5: #f5acbf;
@@ -15,6 +40,98 @@
   --el-color-primary-light-8: #fbdfe6;
   --el-color-primary-light-9: #fdf0f3;
   --el-color-primary-dark-2: #d9557b;
+
+  /* ---------- 3. 语义色：接管 Element Plus 内置冷色 ----------
+     不改的话，EP 默认 success #67c23a / warning #e6a23c / danger #f56c6c / info #909399
+     会与自定义色并存 —— 项目有 19 处 type="danger|warning|info|success" + el-alert 在用，
+     结果就是"同一页出现两个红"。 */
+
+  /* success —— 补齐原本缺失的成功绿 */
+  --el-color-success: #2e9e68;
+  --el-color-success-light-3: #6dbb95;
+  --el-color-success-light-5: #96ceb4;
+  --el-color-success-light-7: #c0e2d2;
+  --el-color-success-light-8: #d5ece1;
+  --el-color-success-light-9: #eaf5f0;
+  --el-color-success-dark-2: #257e53;      /* 白底 5.01:1 */
+
+  /* warning —— 收敛 #f5b342 / #f5a623 / #b45309 / #e6a23c */
+  --el-color-warning: #c8861f;
+  --el-color-warning-light-3: #d8aa62;
+  --el-color-warning-light-5: #e4c28f;
+  --el-color-warning-light-7: #eedbbc;
+  --el-color-warning-light-8: #f4e7d2;
+  --el-color-warning-light-9: #faf3e9;
+  --el-color-warning-dark-2: #a06b19;      /* 白底 4.55:1 */
+
+  /* danger —— 收敛 #e6435d / #e8463a / #c7254e / #f56c6c
+     注意：旧的 #e6435d 与品牌粉 #ec6a8f 色相只差约 8°，用户分不清"品牌色"和"危险色"；
+     这里推到 #d94336，色相差约 21°。 */
+  --el-color-danger: #d94336;
+  --el-color-danger-light-3: #e47b72;
+  --el-color-danger-light-5: #eca19a;
+  --el-color-danger-light-7: #f4c7c3;
+  --el-color-danger-light-8: #f7d9d7;
+  --el-color-danger-light-9: #fbeceb;
+  --el-color-danger-dark-2: #ae362b;       /* 白底 6.25:1 */
+
+  /* error —— 与 danger 是【两个独立 family】，漏了它 el-alert type="error" 仍是冷红 */
+  --el-color-error: #d94336;
+  --el-color-error-light-3: #e47b72;
+  --el-color-error-light-5: #eca19a;
+  --el-color-error-light-7: #f4c7c3;
+  --el-color-error-light-8: #f7d9d7;
+  --el-color-error-light-9: #fbeceb;
+  --el-color-error-dark-2: #ae362b;
+
+  /* info —— 暖灰棕，接管中性标签 / 描述列表 */
+  --el-color-info: #8a7580;
+  --el-color-info-light-3: #ad9ea6;
+  --el-color-info-light-5: #c4bac0;
+  --el-color-info-light-7: #dcd6d9;
+  --el-color-info-light-8: #e8e3e6;
+  --el-color-info-light-9: #f3f1f2;
+  --el-color-info-dark-2: #6e5e66;         /* 白底 6.08:1 */
+
+  /* ---------- 4. 自定义 accent：AI / 强调 ----------
+     刻意【不】写进 --el-color-info：EP 的 info 是"中性状态"角色，
+     紫色 accent 是"品牌 / AI 强调"角色；混用会让所有中性标签变紫。 */
+  --sem-accent: #a26de8;         /* 图标 / 描边      白底 3.57:1（仅非文本） */
+  --sem-accent-soft: #f6f0fd;    /* AI 卡片底色、生成中占位 */
+  --sem-accent-strong: #8257ba;  /* AI 文字          白底 5.22:1 */
+
+  /* ---------- 5. 结构层：表格 / 输入框 / 分割线 / 下拉 ----------
+     ⚠️ 这一层的值是计算 + 目检共同定的，若改动需重看 frontend/color-preview.html */
+
+  /* 5.1 文字层：引用第 1 节，单一来源 */
+  --el-text-color-primary: var(--text-strong);
+  --el-text-color-regular: var(--text-main);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-weak);
+  --el-text-color-disabled: var(--text-disabled);
+
+  /* 5.2 边框层（由 primary 阶梯派生，由浅到深；hover 跟随 text-color-disabled） */
+  --el-border-color-extra-light: #fdf0f3;
+  --el-border-color-lighter: #fbdfe6;
+  --el-border-color-light: #f9ced9;
+  --el-border-color: #f2c3d1;
+  --el-border-color-dark: #eab0c3;
+  --el-border-color-darker: #e09db3;
+
+  /* 5.3 填充层（由浅到深） */
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color-extra-light: #fef7f9;
+  --el-fill-color-lighter: #fdf0f3;
+  --el-fill-color-light: #fbe6ec;
+  --el-fill-color: #f8dbe3;
+  --el-fill-color-dark: #f4cdd9;
+  --el-fill-color-darker: #f0bfce;
+
+  /* 5.4 背景层 */
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #fff7f9;
+  --el-bg-color-overlay: #ffffff;
+
   --el-border-radius-base: 10px;
 }
 
@@ -210,8 +327,8 @@ body {
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.7;
-  background: #f7f7f9;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 10px;
 }
 

@@ -735,6 +735,9 @@ async function handleRemovePhoto(photo) {
 }
 
 .viewer-wrap {
+  /* 例外：图片幻灯片查看器的遮罩底色，需要真正的暗底。
+     刻意保持硬编码，不要"顺手统一"成 --el-fill-color-dark。
+     见 docs/color-refactor-plan.md §4.3 */
   background: #1f1b1e;
   border-radius: 8px;
   overflow: hidden;

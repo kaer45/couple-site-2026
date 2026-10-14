@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>配色 token 目检 · couple-site</title>
+
+<!--
+  配色 token 目检页（一次性开发产物，验完可删）
+
+  用法：直接双击打开本文件即可，无需 npm run dev / 构建。
+  原理：Element Plus 的 CSS 是 BEM 风格，不依赖 JS 就能用 class 渲染出组件外观，
+        所以这里手写 class 名 + 引入本地 EP 样式 + 引入我们的 token 覆盖，
+        就能看到「接管 EP 语义色之后」组件真实的颜色。
+
+  ⚠️ 引入顺序必须与 src/main.js 一致：EP 样式在前，我们的 index.css 在后。
+-->
+
+<link rel="stylesheet" href="./node_modules/element-plus/dist/index.css">
+<link rel="stylesheet" href="./src/styles/index.css">
+
+<style>
+  /* 仅用于本页排版，不参与配色评估 */
+  body { padding: 32px 40px 80px; font-size: 14px; }
+  h1 { font-size: 22px; color: var(--text-strong); margin-bottom: 4px; }
+  h2 {
+    font-size: 16px; color: var(--text-strong);
+    margin: 36px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--el-border-color);
+  }
+  h3 { font-size: 13px; color: var(--text-secondary); font-weight: 600; margin: 20px 0 10px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+  .cell-note { font-size: 11px; color: var(--text-secondary); font-family: Consolas, monospace; }
+  .panel {
+    background: #fff; border: 1px solid var(--el-border-color-light);
+    border-radius: 14px; padding: 18px 20px;
+  }
+  .swatch {
+    height: 58px; border-radius: 10px; display: flex; flex-direction: column;
+    justify-content: center; padding: 0 12px; color: #fff;
+    font-size: 11px; font-family: Consolas, monospace; line-height: 1.5;
+  }
+  .swatch.on-light { color: var(--text-main); }
+  .struct {
+    height: 46px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-family: Consolas, monospace;
+    color: var(--text-secondary); border: 1px solid var(--el-border-color);
+  }
+  table.audit { border-collapse: collapse; font-size: 12px; width: 100%; }
+  table.audit th, table.audit td {
+    border: 1px solid var(--el-border-color); padding: 5px 10px; text-align: left;
+  }
+  table.audit th { background: var(--el-fill-color-lighter); color: var(--text-strong); }
+  .pass { color: var(--el-color-success-dark-2); font-weight: 700; }
+  .fail { color: var(--el-color-danger-dark-2); font-weight: 700; }
+  .old { text-decoration: line-through; opacity: .55; }
+</style>
+</head>
+<body>
+
+<h1>配色 token 目检</h1>
+<p class="sub">
+  对应 <code>docs/color-refactor-plan.md</code> v1.1 的 §7 第 1–3 步（EP 语义色接管 · 结构层 · 清游离色）。<br>
+  <strong>重点看第 4、5 节</strong>（结构层）—— 那部分的值是算出来的，需要你肉眼确认是否过重或过淡。
+</p>
+
+<h2>1. 品牌主色（应保持不变）</h2>
+<div class="grid">
+  <div class="swatch" style="background: var(--el-color-primary)">primary<br>#ec6a8f</div>
+  <div class="swatch on-light" style="background: var(--el-color-primary-light-3)">light-3<br>#f18aa6</div>
+  <div class="swatch on-light" style="background: var(--el-color-primary-light-5)">light-5<br>#f5acbf</div>
+  <div class="swatch on-light" style="background: var(--el-color-primary-light-7)">light-7<br>#f9ced9</div>
+  <div class="swatch on-light" style="background: var(--el-color-primary-light-8)">light-8<br>#fbdfe6</div>
+  <div class="swatch on-light" style="background: var(--el-color-primary-light-9)">light-9<br>#fdf0f3</div>
+  <div class="swatch" style="background: var(--el-color-primary-dark-2)">dark-2<br>#d9557b</div>
+</div>
+
+<h2>2. 语义色：接管 EP 内置冷色（本次核心改动）</h2>
+<p class="sub">
+  下面每组 7 档。对比左侧「旧 EP 默认」——这才是项目里 19 处
+  <code>type="danger|warning|info|success"</code> 实际渲染的颜色。
+</p>
+
+<h3>danger —— <span class="old">EP 默认 #f56c6c（冷红）</span> → 暖红</h3>
+<div class="grid">
+  <div class="swatch" style="background: var(--el-color-danger)">danger<br>#d94336</div>
+  <div class="swatch on-light" style="background: var(--el-color-danger-light-3)">light-3</div>
+  <div class="swatch on-light" style="background: var(--el-color-danger-light-5)">light-5</div>
+  <div class="swatch on-light" style="background: var(--el-color-danger-light-7)">light-7</div>
+  <div class="swatch on-light" style="background: var(--el-color-danger-light-8)">light-8</div>
+  <div class="swatch on-light" style="background: var(--el-color-danger-light-9)">light-9</div>
+  <div class="swatch" style="background: var(--el-color-danger-dark-2)">dark-2<br>#ae362b</div>
+</div>
+
+<h3>warning —— <span class="old">EP 默认 #e6a23c</span> → 收敛后的琥珀</h3>
+<div class="grid">
+  <div class="swatch" style="background: var(--el-color-warning)">warning<br>#c8861f</div>
+  <div class="swatch on-light" style="background: var(--el-color-warning-light-3)">light-3</div>
+  <div class="swatch on-light" style="background: var(--el-color-warning-light-5)">light-5</div>
+  <div class="swatch on-light" style="background: var(--el-color-warning-light-7)">light-7</div>
+  <div class="swatch on-light" style="background: var(--el-color-warning-light-8)">light-8</div>
+  <div class="swatch on-light" style="background: var(--el-color-warning-light-9)">light-9</div>
+  <div class="swatch" style="background: var(--el-color-warning-dark-2)">dark-2<br>#a06b19</div>
+</div>
+
+<h3>success —— <span class="old">EP 默认 #67c23a（冷绿）</span> → 暖绿（原本全局缺失）</h3>
+<div class="grid">
+  <div class="swatch" style="background: var(--el-color-success)">success<br>#2e9e68</div>
+  <div class="swatch on-light" style="background: var(--el-color-success-light-3)">light-3</div>
+  <div class="swatch on-light" style="background: var(--el-color-success-light-5)">light-5</div>
+  <div class="swatch on-light" style="background: var(--el-color-success-light-7)">light-7</div>
+  <div class="swatch on-light" style="background: var(--el-color-success-light-8)">light-8</div>
+  <div class="swatch on-light" style="background: var(--el-color-success-light-9)">light-9</div>
+  <div class="swatch" style="background: var(--el-color-success-dark-2)">dark-2<br>#257e53</div>
+</div>
+
+<h3>info —— <span class="old">EP 默认 #909399（冷灰）</span> → 暖灰棕</h3>
+<div class="grid">
+  <div class="swatch" style="background: var(--el-color-info)">info<br>#8a7580</div>
+  <div class="swatch on-light" style="background: var(--el-color-info-light-3)">light-3</div>
+  <div class="swatch on-light" style="background: var(--el-color-info-light-5)">light-5</div>
+  <div class="swatch on-light" style="background: var(--el-color-info-light-7)">light-7</div>
+  <div class="swatch on-light" style="background: var(--el-color-info-light-8)">light-8</div>
+  <div class="swatch on-light" style="background: var(--el-color-info-light-9)">light-9</div>
+  <div class="swatch" style="background: var(--el-color-info-dark-2)">dark-2<br>#6e5e66</div>
+</div>
+
+<h3>error（与 danger 同为 #d94336；漏掉它 <code>el-alert type="error"</code> 还是冷红）</h3>
+<div class="row">
+  <div class="swatch" style="background: var(--el-color-error); width: 148px">error<br>#d94336</div>
+  <span class="cell-note">error 与 danger 的 7 档取值完全一致，此处不重复展示。</span>
+</div>
+
+<h3>自定义 accent（AI / 强调，刻意不占用 EP 的 info 角色）</h3>
+<div class="grid">
+  <div class="swatch" style="background: var(--sem-accent)">--sem-accent<br>#a26de8</div>
+  <div class="swatch on-light" style="background: var(--sem-accent-soft)">--sem-accent-soft<br>#f6f0fd</div>
+  <div class="swatch" style="background: var(--sem-accent-strong)">--sem-accent-strong<br>#8257ba</div>
+</div>
+
+<h2>3. 组件实测（这些颜色以前来自 EP 冷色默认值）</h2>
+<div class="panel">
+  <h3>按钮</h3>
+  <div class="row">
+    <button class="el-button el-button--primary">主要</button>
+    <button class="el-button el-button--success">成功</button>
+    <button class="el-button el-button--warning">警示</button>
+    <button class="el-button el-button--danger">危险</button>
+    <button class="el-button el-button--info">信息</button>
+    <button class="el-button el-button--danger is-plain">朴素危险</button>
+    <button class="el-button el-button--primary is-text">文字按钮</button>
+    <button class="el-button el-button--primary is-disabled">禁用</button>
+  </div>
+
+  <h3>标签 Tag（light = 文字用 base / 底色用 light-9 —— 本次对比度的取舍点）</h3>
+  <div class="row">
+    <span class="el-tag el-tag--primary el-tag--light">主要</span>
+    <span class="el-tag el-tag--success el-tag--light">完成</span>
+    <span class="el-tag el-tag--warning el-tag--light">重要</span>
+    <span class="el-tag el-tag--danger el-tag--light">逾期</span>
+    <span class="el-tag el-tag--info el-tag--light">无数据</span>
+    <span class="el-tag el-tag--danger el-tag--dark">逾期 dark</span>
+    <span class="el-tag el-tag--warning el-tag--plain">重要 plain</span>
+  </div>
+
+  <h3>告警 Alert（<code>type="error"</code> 走的就是 error family）</h3>
+  <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px">
+    <div class="el-alert el-alert--success" style="padding:8px 12px"><div class="el-alert__content"><span class="el-alert__title">摘要生成成功</span></div></div>
+    <div class="el-alert el-alert--warning" style="padding:8px 12px"><div class="el-alert__content"><span class="el-alert__title">纪念日还有 3 天</span></div></div>
+    <div class="el-alert el-alert--error" style="padding:8px 12px"><div class="el-alert__content"><span class="el-alert__title">AI 服务不可达</span></div></div>
+    <div class="el-alert el-alert--info" style="padding:8px 12px"><div class="el-alert__content"><span class="el-alert__title">暂无数据</span></div></div>
+  </div>
+</div>
+
+<h2>4. 文字层级（19 个灰棕 → 5 档）</h2>
+<div class="panel">
+  <p style="color: var(--text-strong); font-size: 18px; font-weight: 700; margin: 0 0 6px">
+    --text-strong　标题 / 数据　#4a3b43　白底 10.51:1
+  </p>
+  <p style="color: var(--text-main); margin: 0 0 6px">
+    --text-main　正文　#5c4a52　白底 8.21:1 —— 这是一段普通正文，用来判断阅读舒适度。
+  </p>
+  <p style="color: var(--text-secondary); margin: 0 0 6px">
+    --text-secondary　说明 / 时间戳　#7d6a74　白底 5.02:1 —— 2026-10-14 21:35
+  </p>
+  <p style="color: var(--text-weak); margin: 0 0 6px">
+    --text-weak　仅占位符　#a08b97　白底 3.17:1
+  </p>
+  <p style="color: var(--text-disabled); margin: 0">
+    --text-disabled　禁用态　#c9b6bf
+  </p>
+</div>
+
+<h2>5. 结构层（⚠️ 重点目检：是否过重 / 过淡）</h2>
+<p class="sub">
+  这一层以前完全是 EP 的冷灰（<code>#dcdfe6</code> / <code>#f0f2f5</code> / <code>#303133</code>）。
+  下面按「由浅到深」排列，检查①粉色是否过重②相邻档位是否可分辨。
+</p>
+
+<div class="panel">
+  <h3>边框层（由浅 → 深）</h3>
+  <div class="grid" id="borders">
+    <div class="struct" style="border-color: var(--el-border-color-extra-light)">extra-light</div>
+    <div class="struct" style="border-color: var(--el-border-color-lighter)">lighter</div>
+    <div class="struct" style="border-color: var(--el-border-color-light)">light</div>
+    <div class="struct" style="border-color: var(--el-border-color); font-weight: 700">base</div>
+    <div class="struct" style="border-color: var(--el-border-color-dark)">dark</div>
+    <div class="struct" style="border-color: var(--el-border-color-darker)">darker</div>
+  </div>
+
+  <h3>填充层（由浅 → 深）</h3>
+  <div class="grid">
+    <div class="struct" style="background: var(--el-fill-color-extra-light); border-color: transparent">extra-light</div>
+    <div class="struct" style="background: var(--el-fill-color-lighter); border-color: transparent">lighter</div>
+    <div class="struct" style="background: var(--el-fill-color-light); border-color: transparent">light</div>
+    <div class="struct" style="background: var(--el-fill-color); border-color: transparent; font-weight: 700">base</div>
+    <div class="struct" style="background: var(--el-fill-color-dark); border-color: transparent">dark</div>
+    <div class="struct" style="background: var(--el-fill-color-darker); border-color: transparent">darker</div>
+    <div class="struct" style="background: var(--el-fill-color-blank)">blank</div>
+  </div>
+</div>
+
+<h3>输入框 / 表格（结构层最常见的落地处）</h3>
+<div class="panel">
+  <div class="row" style="margin-bottom:14px">
+    <div class="el-input" style="width: 220px">
+      <div class="el-input__wrapper"><input class="el-input__inner" placeholder="占位符颜色"></div>
+    </div>
+    <div class="el-input is-disabled" style="width: 220px">
+      <div class="el-input__wrapper"><input class="el-input__inner" disabled value="禁用输入框"></div>
+    </div>
+  </div>
+
+  <div class="el-table el-table--border">
+    <div class="el-table__inner-wrapper">
+      <div class="el-table__header-wrapper">
+        <table class="el-table__header" style="width:100%">
+          <thead><tr>
+            <th class="el-table__cell"><div class="cell">笔记标题</div></th>
+            <th class="el-table__cell"><div class="cell">格式</div></th>
+            <th class="el-table__cell"><div class="cell">状态</div></th>
+          </tr></thead>
+        </table>
+      </div>
+      <div class="el-table__body-wrapper">
+        <table class="el-table__body" style="width:100%">
+          <tbody>
+            <tr class="el-table__row">
+              <td class="el-table__cell"><div class="cell">Redis 学习笔记</div></td>
+              <td class="el-table__cell"><div class="cell"><span class="el-tag el-tag--info el-tag--light">MD</span></div></td>
+              <td class="el-table__cell"><div class="cell"><span class="el-tag el-tag--success el-tag--light">已解析</span></div></td>
+            </tr>
+            <tr class="el-table__row">
+              <td class="el-table__cell"><div class="cell">长川科技 2027 校招简章</div></td>
+              <td class="el-table__cell"><div class="cell"><span class="el-tag el-tag--warning el-tag--light">DOCX</span></div></td>
+              <td class="el-table__cell"><div class="cell"><span class="el-tag el-tag--danger el-tag--light">逾期</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>6. 收敛结果：游离冷色已清除</h2>
+<div class="panel">
+  <table class="audit">
+    <thead><tr><th>位置</th><th>旧值</th><th>新值</th></tr></thead>
+    <tbody>
+      <tr><td>Note.vue <code>.fmt-md</code></td><td class="old">#7c9cff 蓝</td><td><code>var(--sem-accent)</code></td></tr>
+      <tr><td>Note.vue <code>.fmt-docx</code></td><td class="old">#4a86c8 蓝</td><td><code>var(--sem-accent-strong)</code></td></tr>
+      <tr><td>Note.vue <code>.fmt-txt</code></td><td class="old">#9aa7b5 冷灰蓝</td><td><code>var(--el-color-info)</code></td></tr>
+      <tr><td>Layout.vue <code>.notif-item-title</code></td><td class="old">#2c2c2c 近黑</td><td><code>var(--text-strong)</code></td></tr>
+      <tr><td>Notification.vue <code>.notif-title</code></td><td class="old">#2c2c2c 近黑</td><td><code>var(--text-strong)</code></td></tr>
+      <tr><td>index.css 代码块底</td><td class="old">#f7f7f9 冷灰</td><td><code>var(--el-fill-color-lighter)</code></td></tr>
+      <tr><td>AlbumDetail.vue 幻灯片遮罩</td><td>#1f1b1e</td><td><strong>保留</strong>（图片遮罩需真暗底，已加注释）</td></tr>
+    </tbody>
+  </table>
+  <h3>改动后的格式徽章（原为三个冷色）</h3>
+  <div class="row">
+    <span style="background: var(--sem-accent); color:#fff; font-size:11px; font-weight:700; letter-spacing:.4px; padding:2px 9px; border-radius:6px">MD</span>
+    <span style="background: var(--el-color-info); color:#fff; font-size:11px; font-weight:700; letter-spacing:.4px; padding:2px 9px; border-radius:6px">TXT</span>
+    <span style="background: var(--sem-accent-strong); color:#fff; font-size:11px; font-weight:700; letter-spacing:.4px; padding:2px 9px; border-radius:6px">DOCX</span>
+    <span style="background: var(--el-color-primary-light-3); color:#fff; font-size:11px; font-weight:700; letter-spacing:.4px; padding:2px 9px; border-radius:6px">默认</span>
+  </div>
+</div>
+
+<h2>7. 对比度核验</h2>
+<div class="panel">
+  <table class="audit">
+    <thead><tr><th>用途</th><th>对比度</th><th>目标</th><th>判定</th></tr></thead>
+    <tbody>
+      <tr><td>--text-strong 作正文</td><td>10.51</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>--text-main 作正文</td><td>8.21</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>--text-secondary 作正文</td><td>5.02</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>--text-weak 作占位符</td><td>3.17</td><td>3.0</td><td class="pass">PASS</td></tr>
+      <tr><td>success dark-2 作文字</td><td>5.01</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>warning dark-2 作文字</td><td>4.55</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>danger dark-2 作文字</td><td>6.25</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>info dark-2 作文字</td><td>6.08</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>--sem-accent-strong 作文字</td><td>5.22</td><td>4.5</td><td class="pass">PASS</td></tr>
+      <tr><td>success base 作描边/图标</td><td>3.38</td><td>3.0</td><td class="pass">PASS</td></tr>
+      <tr><td>warning base 作描边/图标</td><td>3.05</td><td>3.0</td><td class="pass">PASS</td></tr>
+      <tr><td>--- 以下为已知的、可接受的不足 ---</td><td></td><td></td><td></td></tr>
+      <tr><td>tag 文字（success base on light-9）</td><td>3.03</td><td>4.5</td><td class="fail">EP 默认 2.08，已改善但仍不足</td></tr>
+      <tr><td>tag 文字（warning base on light-9）</td><td>2.77</td><td>4.5</td><td class="fail">EP 默认 2.04，已改善但仍不足</td></tr>
+      <tr><td>格式徽章 MD（白字 on --sem-accent）</td><td>3.57</td><td>4.5</td><td class="fail">留待逐页替换时改浅底深字</td></tr>
+    </tbody>
+  </table>
+  <p class="sub" style="margin-top:12px">
+    对比度按 WCAG 相对亮度公式计算，背景取<strong>渐变最深档 <code>#ffdde8</code></strong> 时另有一套数值，
+    上表列的是白底（卡片内文字的主场景）。
+  </p>
+</div>
+
+</body>
+</html>

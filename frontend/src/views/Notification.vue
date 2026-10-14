@@ -172,7 +172,7 @@ onMounted(() => {
 }
 
 .notif-title {
-  color: #2c2c2c;
+  color: var(--text-strong);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

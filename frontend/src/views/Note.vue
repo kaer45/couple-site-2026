@@ -503,16 +503,21 @@ function sizeText(bytes) {
   background: var(--el-color-primary-light-3);
 }
 
+/* 格式徽标：三档收敛到暖色家族内
+   （原本是三个冷色：亮蓝 / 中蓝 / 冷灰蓝，与粉色基调冲突；
+     具体旧值见 docs/color-refactor-plan.md §1.4 的映射表）
+   白字对比度：md 3.57 / docx 5.22 / txt 4.25。md 那档偏弱，
+   若要严格达 AA，需把徽章改成「浅底 + 深字」——留待逐页替换时处理。 */
 .fmt-md {
-  background: #7c9cff;
+  background: var(--sem-accent);
 }
 
 .fmt-txt {
-  background: #9aa7b5;
+  background: var(--el-color-info);
 }
 
 .fmt-docx {
-  background: #4a86c8;
+  background: var(--sem-accent-strong);
 }
 
 .note-item-summary {

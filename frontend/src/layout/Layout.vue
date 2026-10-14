@@ -493,7 +493,7 @@ function handleLogout() {
 }
 
 .notif-item-title {
-  color: #2c2c2c;
+  color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
