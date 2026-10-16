@@ -46,8 +46,8 @@ vim .env   # 修改 MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD / JWT_SECRET 三个必�
 ### 3.1 部署 Python Agent 服务（可选）
 
 AI 能力（检索问答、内容摘要）由仓库内 `agent-service/` 提供，**不在 compose 编排里**，
-需要单独在宿主机上起。技术栈：FastAPI + **hello-agents 0.2.9** + Qdrant + SQLite
-（Neo4j 知识图谱尚未实现，见 `docs/agent-service-build-guide.md`）。
+需要单独在宿主机上起。技术栈：FastAPI + httpx + qdrant-client + SQLite，
+**不依赖任何智能体框架**（Neo4j 知识图谱尚未实现，见 `docs/agent-service-build-guide.md`）。
 
 ```bash
 cd agent-service
@@ -72,7 +72,7 @@ docker compose up -d qdrant neo4j
 > 2. 服务**不会因为依赖不可用而启动失败**（按能力降级）：Qdrant / 嵌入模型不可用时只有
 >    `/v1/ingest` 与向量检索受影响，`/v1/chat`、`/v1/summarize` 照常工作。但**单次请求内的
 >    失败一定返回非 200** —— 因为 Java 对 ingest 只看 HTTP 状态码（契约 §1.2）。
-> 3. 嵌入模型**不做静默降级**（不使用 hello-agents 的 TF-IDF 回退链），
+> 3. 嵌入模型**不做任何回退式降级**，
 >    否则会往同一向量集合写入不同维度的向量，导致检索静默失效。
 
 ## 4. 构建并启动

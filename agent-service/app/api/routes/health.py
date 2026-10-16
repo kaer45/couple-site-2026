@@ -54,7 +54,6 @@ def health() -> dict:
     return ok(
         {
             "version": __version__,
-            "mock": settings.agent_mock,
             "degraded": degraded,
             "config": settings.summary(),
             "components": components,

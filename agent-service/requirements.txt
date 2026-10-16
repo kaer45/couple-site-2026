@@ -1,24 +1,23 @@
 # ============================================================
 # couple-site Agent 服务依赖
 # 安装：pip install -r requirements.txt
+#
+# 设计原则：**不依赖任何智能体框架**。
+# LLM 与嵌入都由 app/services/ 里的自研客户端通过 httpx 直连官方 HTTP 接口，
+# 因此不需要 openai SDK，也不需要 dashscope SDK（DashScope 走兼容模式 REST）。
 # ============================================================
-
-# ---------- 智能体框架 ----------
-# ⚠️ 版本必须写死：1.0.0 改过顶层导出与模块结构（streaming / session_store 等），
-#    用 >=0.2.9 会在某次 pip install 后静默炸掉。
-# 它已自动携带：openai<2 / pydantic>=2 / requests / python-dotenv /
-#              beautifulsoup4 / numpy>=2 / networkx / tiktoken —— 不要重复声明。
-hello-agents==0.2.9
 
 # ---------- HTTP 服务 ----------
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
 pydantic-settings>=2.3,<3.0
 
+# ---------- 出站 HTTP（调用 LLM 与嵌入接口）----------
+# 同时被 fastapi.testclient 复用，所以契约测试不需要额外依赖
+httpx>=0.27
+
 # ---------- 向量库 ----------
-# 框架的 QdrantVectorStore 需要。
-# ⚠️ 不要装 hello-agents[memory]（会额外拖进 spacy + scikit-learn）或
-#    hello-agents[rag]（torch + transformers + sentence-transformers，好几个 GB）。
+# 代码兼容新旧 API：>=1.10 走 query_points()，1.9 走 search()
 qdrant-client>=1.9
 
 # ---------- 知识图谱（下一轮做实体/关系抽取时启用）----------
@@ -26,4 +25,5 @@ qdrant-client>=1.9
 neo4j>=5.0
 
 # ---------- 测试（可选）----------
+# 契约测试用 fastapi.testclient，它依赖上面的 httpx；纯逻辑单测零依赖
 # pytest>=8.0

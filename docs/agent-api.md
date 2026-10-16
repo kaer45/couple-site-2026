@@ -6,9 +6,11 @@
 > 对齐 Java `Result<T>` 风格：HTTP 层成功一律 200；body 为 `{code, message, data}`（code=0 成功）
 >
 > **实现状态**：`agent-service/`（Python / FastAPI）**核心四接口已实现** —— 含向量检索、
-> SQLite 多轮会话、离线 mock 开关；Neo4j 知识图谱待实现。
-> 实现说明见 `agent-service/README.md`，施工与踩坑记录见 `docs/agent-service-build-guide.md`。
-> 本文档是双边的**唯一契约**，实现方式不受其约束。
+> SQLite 多轮会话；**不依赖任何智能体框架**（LLM / 嵌入 / 向量库三个客户端均为自研，
+> 直连 httpx 与 qdrant-client），也**没有 mock 开关**。Neo4j 知识图谱待实现。
+> 实现说明见 `agent-service/README.md`，施工与设计取舍见 `docs/agent-service-build-guide.md`。
+> 本文档是双边的**唯一契约**，只约定线格式（字段 / SSE / 错误码 / namespace），
+> 与实现技术选型无关。
 
 ---
 

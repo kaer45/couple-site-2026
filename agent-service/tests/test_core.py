@@ -1,4 +1,4 @@
-"""纯逻辑单测：不依赖 fastapi / hello_agents / 网络，因此随时可跑。
+"""纯逻辑单测：不依赖 fastapi / httpx / 网络，因此随时可跑。
 
 运行方式（二选一）：
     cd agent-service && python -m pytest tests/test_core.py -v

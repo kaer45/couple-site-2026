@@ -1,10 +1,7 @@
 """会话历史：按 session_key 维护多轮上下文。
 
 契约 §2.3：单次会话上下文由 **Python 侧**按 `user_id + session_id` 维护，Java 不感知，
-建议保留 10 条 / 24h 过期。
-
-⚠️ hello-agents 0.2.9 **不自带会话持久化**（它的 `memory/storage/document_store.py`
-是存 RAG 文档的），所以这一层必须自己写。
+建议保留 10 条 / 24h 过期。这层完全由本服务自己实现（SQLite），不依赖任何框架。
 
 session_key 约定：`u{user_id}:{session_id}`，比只用 session_id 更安全，
 避免不同用户传入相同 session_id 时串话。user_id 缺失时退化为 `anon:{session_id}`。

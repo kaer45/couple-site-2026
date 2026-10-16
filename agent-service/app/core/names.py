@@ -1,19 +1,15 @@
 """namespace 与 point id 的唯一生成处（契约 §6）。
 
-两个约束都来自 hello-agents 0.2.9 的实现细节，踩了就会静默出错：
+两条约束，踩了都会静默出错：
 
 1. **namespace = Qdrant collection 名**，一个 namespace 一个 collection。
    - moment / photo + scope=couple → `moment_c{scope_id}`（两者共用同一域）
    - note        + scope=personal → `note_u{scope_id}`
 
-2. ⚠️ `QdrantVectorStore.add_vectors()` 对**非 UUID 的字符串 id 会静默替换成随机 UUID**：
-       elif isinstance(point_id, str):
-           try:
-               uuid.UUID(point_id); safe_id = point_id
-           except Exception:
-               safe_id = str(uuid.uuid4())      # ← 幂等和删除都会失效
-   所以 point id 必须是**确定性的 UUID 字符串**。这里用 uuid5（同输入永远同输出）。
-   千万不要用 `f"{biz_type}:{biz_id}"` 这种形式。
+2. ⚠️ Qdrant 的 point id **只接受无符号整数或 UUID 字符串**。
+   传 `"note:6"` 这种形式不会被"容错处理"，而是写入失败或被拒绝。
+   因此这里统一用 **uuid5** 生成确定性 UUID：同一 (biz_type, biz_id) 永远得到同一个
+   id —— 这正是 upsert 幂等与精确删除的根基（契约 §1.3），不要改成随机 id。
 """
 
 from __future__ import annotations

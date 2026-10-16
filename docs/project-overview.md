@@ -30,7 +30,7 @@
 |----|------|
 | 后端 | Java 17 · Spring Boot 3.3.5 · Spring Security + JWT（jjwt 0.12.6，HS256）· Spring WebSocket · WebClient/WebFlux（SSE）· MyBatis-Plus 3.5.7 · MySQL 8.0 · Lombok |
 | 前端 | Vue 3（组合式 API）· Vite 5 · Element Plus 2.7 · Pinia · Vue Router 4 · Axios · dayjs |
-| AI（可选） | Python Agent 服务（`agent-service/`）：`/v1/ingest`（向量同步）、`/v1/chat`（SSE 对话）、`/v1/summarize`（内容摘要）、`/v1/health`（探活）。技术栈：FastAPI + **hello-agents 0.2.9** + Qdrant + SQLite。⏳ Neo4j 知识图谱未实现 |
+| AI（可选） | Python Agent 服务（`agent-service/`）：`/v1/ingest`（向量同步）、`/v1/chat`（SSE 对话）、`/v1/summarize`（内容摘要）、`/v1/health`（探活）。技术栈：FastAPI + **httpx** + **qdrant-client** + SQLite，**不依赖任何智能体框架**。⏳ Neo4j 知识图谱未实现 |
 | 部署 | Docker Compose（MySQL 8.0 + Backend + Nginx），单机可跑，数据卷持久化 |
 
 **开发进度**（对照 `docs/roadmap.md`）：阶段 1~5 全部完成；阶段 6 扩展功能已落地 **4 项**（实时聊天、纪念日提醒、每日待办、AI 助手），其余 4 项（情侣任务打卡、积分商城、OSS、农历）仍在规划。
@@ -60,9 +60,9 @@ couple-site/
 │   ├── init.sql             # 建库建表脚本（12 张表 + 末尾注释预留扩展表）
 │   ├── fix_comment.sql      # 历史修复：补齐表/字段注释
 │   └── migration-*.sql      # 增量迁移脚本（已有库升级用；init.sql 只在空数据卷执行）
-├── agent-service/           # Python Agent 服务（FastAPI + hello-agents 0.2.9 + Qdrant + SQLite）
-│   ├── requirements.txt     # hello-agents==0.2.9 / fastapi / uvicorn / pydantic-settings / qdrant-client / neo4j
-│   ├── .env.example         # 配置模板（LLM_* / DASHSCOPE_* / QDRANT_* / AGENT_MOCK）
+├── agent-service/           # Python Agent 服务（FastAPI + httpx + qdrant-client + SQLite，无框架）
+│   ├── requirements.txt     # fastapi / uvicorn / pydantic-settings / httpx / qdrant-client / neo4j
+│   ├── .env.example         # 配置模板（LLM_* / DASHSCOPE_* / EMBED_* / QDRANT_* / SESSION_*）
 │   ├── README.md            # 启动、mock 模式、降级矩阵、排错
 │   ├── run.py               # 启动入口
 │   ├── tests/               # test_core（纯逻辑 17 项）/ smoke_api（契约端到端 36 项）/ check_framework_api（框架假设 29 项）

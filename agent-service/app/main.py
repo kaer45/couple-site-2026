@@ -34,10 +34,6 @@ logger = logging.getLogger(__name__)
 
 def _warmup(settings: Settings) -> None:
     """预热外部依赖。全部 best-effort，失败只降级不阻断启动。"""
-    if settings.agent_mock:
-        logger.warning("AGENT_MOCK=true：跳过所有外部依赖预热（仅供联调，勿用于生产）")
-        return
-
     # 1) Qdrant
     try:
         qdrant_ok, qdrant_msg = get_vector_store().health()
@@ -50,8 +46,8 @@ def _warmup(settings: Settings) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Qdrant 探活异常（/v1/ingest 与检索将不可用）: %s", exc)
 
-    # 2) 嵌入模型。注意它的构造函数末尾会发一次真实网络请求探测维度，
-    #    所以这一步可能耗时几秒，且 key/网络有问题时会抛异常 —— 必须容错。
+    # 2) 嵌入模型。这里做一次真实调用探活，顺便验证 EMBED_DIM 与模型维度是否一致；
+    #    可能耗时一两秒，且 key/网络有问题时会抛异常 —— 必须容错。
     if not settings.embedding_configured:
         logger.warning("DASHSCOPE_API_KEY 未配置：/v1/ingest 与检索将返回 503 / 空上下文")
     else:
@@ -76,7 +72,7 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
 
     with bind_trace(None):
-        logger.info("Agent 服务启动中… version=%s mock=%s", __version__, settings.agent_mock)
+        logger.info("Agent 服务启动中… version=%s", __version__)
 
         try:
             get_sqlite().init_schema()
@@ -91,6 +87,8 @@ async def lifespan(app: FastAPI):
 
     with bind_trace(None):
         get_llm().close()
+        get_embedding().close()
+        get_vector_store().close()
         logger.info("Agent 服务已停止")
 
 

@@ -145,7 +145,7 @@ components/    MomentCard(动态卡片)、EmptyState(空态) 等
 | 纪念日提醒 | ✅ 已实现 | 每天 08:00 定时任务，`remind_days` 命中即发站内通知；`reminder_log` 唯一键防重 | `anniversary.remind_days` 字段 |
 | 每日待办 | ✅ 已实现（形态调整） | 原计划"情侣任务打卡"，实际先落地**纯个人待办**（`user_id` 隔离，伴侣不可见），四分组聚合视图 | `user_todo` 表、Controller-Service-Mapper 分层 |
 | 学习笔记 | ✅ 已实现 | 上传 `.md`/`.txt`/`.docx`，抽取纯文本入库供搜索与 AI 检索；原文件可下载；解析失败不阻断上传。正对应契约里预留的 `biz_type=note` / `scope=personal` / `note_u{userId}` | `note` 表、`IngestEvent` 通道、`FileStorageService.storeDocument()` |
-| AI 助手 / 语义检索 | ✅ Java 侧 / ✅ Python 核心 / ⏳ 图谱 | Java 侧全部就绪（ingest 同步动态 / 照片 / 学习笔记向量 + SSE 对话透传 + `/v1/summarize` 摘要调用，含超时 / 熔断 / 降级，已改真流式）。Python 侧 `agent-service/` 已实现四接口 + 向量检索 + SQLite 多轮会话 + 离线 mock 开关，基于 `hello-agents 0.2.9`。**Neo4j 实体/关系抽取未实现**。契约 `docs/agent-api.md`，施工 `docs/agent-service-build-guide.md`，实现 `agent-service/README.md` | `agent` 模块 + `IngestEvent` 事件 |
+| AI 助手 / 语义检索 | ✅ Java 侧 / ✅ Python 核心 / ⏳ 图谱 | Java 侧全部就绪（ingest 同步动态 / 照片 / 学习笔记向量 + SSE 对话透传 + `/v1/summarize` 摘要调用，含超时 / 熔断 / 降级，已改真流式）。Python 侧 `agent-service/` 已实现四接口 + 向量检索 + SQLite 多轮会话，**不依赖智能体框架**（LLM / 嵌入 / 向量库三个客户端自研，直连 httpx 与 qdrant-client），**无 mock 开关**。**Neo4j 实体/关系抽取未实现**。契约 `docs/agent-api.md`，施工 `docs/agent-service-build-guide.md`，实现 `agent-service/README.md` | `agent` 模块 + `IngestEvent` 事件 |
 | 情侣任务打卡 | ⏳ 未实现 | `task`/`task_record` 表 + 打卡接口 + 首页卡片（共享任务，区别于个人待办） | 表结构（init.sql 注释）、分层规范 |
 | 积分商城 | ⏳ 未实现 | `point_record` 表 + 积分增减服务 + 兑换接口 | 表结构、Result 统一规范 |
 | 相册换 OSS | ⏳ 未实现 | 新增 `OssFileStorageServiceImpl`，上传时直传/服务端签名 | `FileStorageService` 接口抽象 |

@@ -6,7 +6,7 @@
 
 顺序与契约 §2.2 的推荐实现一致：先 content，再 refs，最后由路由层发 [DONE]。
 
-注意：hello-agents 是**同步**的，本模块全部是同步生成器。
+注意：本模块**全部是同步生成器**（三个客户端都是同步的）。
 路由层把同步生成器直接交给 `StreamingResponse`，Starlette 会自动用
 `iterate_in_threadpool` 包一层，不会阻塞事件循环。
 """
