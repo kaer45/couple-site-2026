@@ -58,14 +58,19 @@ public class ChatWsHandler extends TextWebSocketHandler {
                 return;
             }
             // 幂等保存在 service 内完成：撞 (couple_id, client_msg_id) 唯一键返回 null，不重复广播
+            boolean isBot = "BOT".equalsIgnoreCase(request.getMsgType());
+            // BOT 但问题为空：不落库空消息，直接给降级提示（不调 Python）
+            if (isBot && !org.springframework.util.StringUtils.hasText(request.getContent())) {
+                agentChatService.respondEmptyQuestion(coupleId, senderId, json -> sendRaw(coupleId, json));
+                return;
+            }
             MessageVO saved = chatService.save(coupleId, senderId,
-                    request.getType(), request.getContent(), request.getClientMsgId(), false);
+                    request.getType(), request.getContent(), request.getClientMsgId(), isBot);
             if (saved != null) {
                 broadcast(coupleId, saved);
-                // @bot 触发（以 @bot 开头）：异步转 Agent，流式回复推给同 couple
-                if (isBotTrigger(saved.getContent())) {
-                    String finalContent = saved.getContent();
-                    agentChatService.processAgentMessage(coupleId, senderId, finalContent,
+                // BOT 消息（msgType 语义判定，不再依赖 @bot 字符串前缀）：异步转 Agent，流式回复推给同 couple
+                if (isBot) {
+                    agentChatService.processAgentMessage(coupleId, senderId, saved.getContent(),
                             "couple", coupleId, json -> sendRaw(coupleId, json));
                 }
             }
@@ -74,10 +79,7 @@ public class ChatWsHandler extends TextWebSocketHandler {
         }
     }
 
-    /** @bot 触发判定：消息以 @bot 开头（句中触发一期不做） */
-    private boolean isBotTrigger(String content) {
-        return content != null && content.trim().startsWith("@bot");
-    }
+    /** @bot 触发判定：由上行 msgType=BOT 决定（@bot 前缀只存在于前端 UI 层，不参与判定） */
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {

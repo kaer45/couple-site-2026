@@ -102,7 +102,7 @@ Accept: text/event-stream
   "user_id": 1,
   "couple_id": 11,
   "session_id": "couple11 或 user1",
-  "message": "用户输入（@bot 后的完整文本）",
+  "message": "用户真实输入的问题文本（不含 @bot 前缀；@bot 由前端 UI 层以 chip 形式承载，上行仅用 msgType 标识）",
   "scope": "couple | personal",
   "scope_id": 11
 }

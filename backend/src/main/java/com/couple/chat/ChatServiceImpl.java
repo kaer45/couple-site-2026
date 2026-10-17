@@ -52,8 +52,8 @@ public class ChatServiceImpl implements ChatService {
             // 唯一键 (couple_id, client_msg_id) 冲突：同一条消息重复提交，直接丢弃
             return null;
         }
-        // 发送者已读位推进：仅普通消息（bot 触发/AGENT 回复不推进，它们是辅助内容）
-        if (msg.getId() != null && !Boolean.TRUE.equals(msg.getBotFlag())) {
+        // 已读位推进：用户实际发出的消息（TEXT/IMAGE，含 BOT）都推进；AGENT 回复是辅助内容，不推进
+        if (msg.getId() != null && !"AGENT".equals(msg.getType())) {
             readMapper.upsertLastRead(coupleId, senderId, msg.getId());
         }
         return toVO(msg);
@@ -131,7 +131,16 @@ public class ChatServiceImpl implements ChatService {
         vo.setContent(msg.getContent());
         vo.setClientMsgId(msg.getClientMsgId());
         vo.setBotFlag(msg.getBotFlag());
+        vo.setMsgType(msgTypeOf(msg));
         vo.setCreatedAt(msg.getCreatedAt());
         return vo;
+    }
+
+    /** 语义类型还原：AGENT 回复→AGENT；botFlag 标记的用户消息→BOT；其余→USER */
+    private String msgTypeOf(ChatMessage msg) {
+        if ("AGENT".equals(msg.getType())) {
+            return "AGENT";
+        }
+        return Boolean.TRUE.equals(msg.getBotFlag()) ? "BOT" : "USER";
     }
 }

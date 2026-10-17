@@ -65,6 +65,14 @@ public class AgentChatService {
         log.info("Agent 回复完成 coupleId={}, userId={}, 长度={}", coupleId, userId, result.fullText().length());
     }
 
+    /** BOT 触发但问题为空：不调 Python，直接落库一条降级提示并下发结束帧 */
+    public void respondEmptyQuestion(Long coupleId, Long userId, Consumer<String> pusher) {
+        String text = "我还没收到你的问题哦～ 点 @bot 后输入你想问的内容吧。";
+        String agentMsgId = UUID.randomUUID().toString();
+        MessageVO vo = chatService.save(coupleId, userId, "AGENT", text, agentMsgId, true);
+        pushFinal(pusher, agentMsgId, vo, null);
+    }
+
     /** 四态降级文案（Controller /ai 页也复用） */
     public static String fallbackText(String errorType) {
         return switch (errorType == null ? "" : errorType) {

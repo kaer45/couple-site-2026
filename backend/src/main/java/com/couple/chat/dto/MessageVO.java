@@ -25,6 +25,9 @@ public class MessageVO {
 
     private Boolean botFlag;
 
+    /** 消息语义类型：USER / BOT / AGENT（历史拉取时由 type+botFlag 推导还原） */
+    private String msgType;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 }

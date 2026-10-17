@@ -25,13 +25,14 @@
           </div>
           <div v-else-if="!messages.length" class="chat-empty">
             <p>还没有消息，说句"你好"开启对话吧 💕</p>
-            <p class="chat-empty-tip">试试 <b>@bot 我们上次去了哪</b> 召唤 AI 助手</p>
+            <p class="chat-empty-tip">点 <b>@bot</b> 或输入 <b>@</b> 召唤 AI 助手</p>
           </div>
 
           <div v-for="m in messages" :key="m._key" class="msg-row" :class="isMine(m) ? 'mine' : 'other'">
             <div class="msg-avatar">{{ avatarOf(m) }}</div>
             <div class="msg-main">
               <div v-if="m.type === 'AGENT'" class="msg-agent-tag">🤖 AI 助手</div>
+              <div v-else-if="m.msgType === 'BOT'" class="msg-bot-tag">🤖 AI 提问</div>
               <div class="msg-bubble" :class="{ agent: m.type === 'AGENT', _failed: m._failed }">
                 <template v-if="m.type === 'IMAGE'">
                   <img v-if="m.imgOk !== false" :src="m.content" class="msg-img clickable-img" @error="m.imgOk = false"
@@ -75,17 +76,35 @@
 
         <!-- 输入区 -->
         <div class="chat-input-wrap">
+          <!-- @ 候选：输入框内输入 @ 时弹出 -->
+          <transition name="el-fade-in">
+            <div v-if="atMenuVisible" class="chat-at-menu">
+              <div class="chat-at-item" @click="chooseAtBot">
+                <span class="chat-at-avatar">🤖</span>
+                <div class="chat-at-info">
+                  <span class="chat-at-name">AI 助手</span>
+                  <span class="chat-at-desc">召唤 AI 回答问题</span>
+                </div>
+              </div>
+            </div>
+          </transition>
           <div class="chat-input-row">
-            <el-tooltip content="插入 @bot 召唤 AI 助手" placement="top">
+            <el-tooltip content="召唤 AI 助手" placement="top">
               <el-button class="chat-ibot-btn" circle size="small" @click="insertAtBot">@</el-button>
             </el-tooltip>
+            <!-- AI 助手 chip：标签实体，不进 draft 文本 -->
+            <div v-if="botActive" class="chat-bot-chip">
+              <span class="chat-bot-chip-text">🤖 AI 助手</span>
+              <el-icon class="chat-bot-chip-x" @click="botActive = false"><Close /></el-icon>
+            </div>
             <el-input
               v-model="draft"
               type="textarea"
               :rows="1"
               :autosize="{ minRows: 1, maxRows: 4 }"
               resize="none"
-              placeholder="说点什么…（@bot 开头可召唤 AI 助手）"
+              :placeholder="botActive ? '输入你想问 AI 的问题…' : '说点什么…'"
+              @input="onDraftInput"
               @keydown.enter.exact.prevent="sendText"
             />
             <el-tooltip content="发送图片" placement="top">
@@ -101,7 +120,7 @@
                 <el-button class="chat-img-btn" circle size="small">🖼️</el-button>
               </el-upload>
             </el-tooltip>
-            <el-button type="primary" round :disabled="!draft.trim()" @click="sendText">发送</el-button>
+            <el-button type="primary" round :disabled="!draft.trim() && !botActive" @click="sendText">发送</el-button>
           </div>
         </div>
       </div>
@@ -112,7 +131,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, Close } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
 import * as chatApi from '@/api/chat'
@@ -123,6 +142,10 @@ const userStore = useUserStore()
 const msgListRef = ref()
 const messages = ref([])
 const draft = ref('')
+/** AI 助手 chip 开关（标签实体，不进入 draft 文本） */
+const botActive = ref(false)
+/** 输入框内输入 @ 时弹出的候选菜单 */
+const atMenuVisible = ref(false)
 const connected = ref(false)
 const reconnecting = ref(false)
 const loadingHistory = ref(false)
@@ -307,16 +330,18 @@ async function pullAfterId() {
 
 /* ========== 发送 ========== */
 function sendText() {
-  const content = draft.value.trim()
-  if (!content) return
+  const content = draft.value.trim()   // 纯文本；BOT 空内容也允许发送（服务端给降级提示）
+  const msgType = botActive.value ? 'BOT' : 'USER'
   draft.value = ''
-  doSend('TEXT', content)
+  botActive.value = false
+  atMenuVisible.value = false
+  doSend('TEXT', content, undefined, msgType)
 }
 
 /** 发送：clientMsgId 不传则新生成；重发必须透传原值（服务端靠它幂等去重） */
-function doSend(type, content, clientMsgId) {
+function doSend(type, content, clientMsgId, msgType = 'USER') {
   const cid = clientMsgId || crypto.randomUUID()
-  const payload = JSON.stringify({ type, content, clientMsgId: cid })
+  const payload = JSON.stringify({ type, content, clientMsgId: cid, msgType })
   if (ws && ws.readyState === WebSocket.OPEN) {
     try {
       ws.send(payload)
@@ -324,15 +349,15 @@ function doSend(type, content, clientMsgId) {
     } catch (e) { /* 发送抛异常 → 走失败占位 */ }
   }
   // 连接未就绪/发送失败：本地占位气泡(标记失败) + 入队，连接恢复后自动重发(同 cid)
-  markFailedLocal(type, content, cid)
-  resendQueue.push({ type, content, clientMsgId: cid })
+  markFailedLocal(type, content, cid, msgType)
+  resendQueue.push({ type, content, clientMsgId: cid, msgType })
   reconnecting.value = true
 }
 
 /** 失败占位消息：显示"发送失败 + 重发"按钮；服务端确认(广播回同 clientMsgId)时被替换 */
-function markFailedLocal(type, content, cid) {
+function markFailedLocal(type, content, cid, msgType) {
   if (pendingByClientId.has(cid)) return // 同一消息已在占位中，不重复添加
-  const item = normalize({ id: null, senderId: myId, type, content, clientMsgId: cid })
+  const item = normalize({ id: null, senderId: myId, type, content, clientMsgId: cid, msgType })
   item._key = 'pending-' + cid // 与真实消息 _key(=clientMsgId) 区分，避免 v-for key 冲突
   item._pending = true
   item._failed = true
@@ -342,7 +367,7 @@ function markFailedLocal(type, content, cid) {
 
 /** 手动重发：透传原 clientMsgId（幂等键不变 → 服务端不会重复入库） */
 function retrySend(m) {
-  doSend(m.type === 'IMAGE' ? 'IMAGE' : 'TEXT', m.content, m.clientMsgId)
+  doSend(m.type === 'IMAGE' ? 'IMAGE' : 'TEXT', m.content, m.clientMsgId, m.msgType || 'USER')
 }
 
 function flushResendQueue() {
@@ -367,7 +392,7 @@ function beforeImageUpload(file) {
 
 function handleImageSuccess(res) {
   if (res && res.code === 0 && res.data?.url) {
-    doSend('IMAGE', res.data.url)
+    doSend('IMAGE', res.data.url, undefined, 'USER')
   } else {
     ElMessage.error(res?.message || '图片上传失败')
   }
@@ -435,6 +460,8 @@ function normalize(msg) {
     type: msg.type || 'TEXT',
     content: msg.content || '',
     clientMsgId: msg.clientMsgId || null,
+    // 语义类型：AGENT 消息推导为 AGENT；BOT 提问由服务端 msgType 透出；其余 USER
+    msgType: msg.msgType || (msg.type === 'AGENT' ? 'AGENT' : 'USER'),
     // AGENT 流式气泡为 false（进行中）；普通消息/已落库消息默认 true（已完成）
     done: msg.done ?? true,
     _key
@@ -456,9 +483,22 @@ function timeOf(m) {
   return m.createdAt ? dayjs(m.createdAt).format('HH:mm') : ''
 }
 
+/** 点击输入框前 @ 按钮：直接开启 AI 助手 chip（标签实体，不进 draft 文本） */
 function insertAtBot() {
-  draft.value = draft.value.replace(/^@bot\s*/i, '') // 避免重复插入
-  draft.value = '@bot ' + draft.value
+  botActive.value = true
+  atMenuVisible.value = false
+}
+
+/** 输入框内容变化：以裸 @ 结尾时弹出 AI 助手候选 */
+function onDraftInput() {
+  atMenuVisible.value = draft.value.endsWith('@') && !botActive.value
+}
+
+/** 候选中选择 AI 助手：开启 chip 并移除刚输入的裸 @ 字符 */
+function chooseAtBot() {
+  botActive.value = true
+  draft.value = draft.value.replace(/@\s*$/, '')
+  atMenuVisible.value = false
 }
 
 /* ========== 生命周期 ========== */
@@ -588,6 +628,13 @@ onBeforeUnmount(() => {
   margin-bottom: 2px;
 }
 
+/* BOT 提问标识：与 AGENT 回复同紫色系，提示"这条消息发给了 AI" */
+.msg-bot-tag {
+  font-size: 12px;
+  color: var(--sem-accent-strong);
+  margin-bottom: 2px;
+}
+
 .msg-bubble {
   padding: 9px 13px;
   border-radius: 14px;
@@ -689,6 +736,90 @@ onBeforeUnmount(() => {
   border-top: 1px solid rgba(236, 106, 143, 0.12);
   padding: 10px 16px;
   background: rgba(255, 255, 255, 0.9);
+  position: relative;
+}
+
+/* @ 候选菜单：输入框内输入 @ 时弹出 */
+.chat-at-menu {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  left: 16px;
+  right: 16px;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid rgba(162, 109, 232, 0.25);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(162, 109, 232, 0.15);
+  padding: 4px;
+}
+
+.chat-at-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.chat-at-item:hover {
+  background: var(--sem-accent-soft);
+}
+
+.chat-at-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sem-accent-soft), var(--sem-accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.chat-at-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.chat-at-name {
+  font-size: 14px;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.chat-at-desc {
+  font-size: 12px;
+  color: var(--text-weak);
+}
+
+/* AI 助手 chip：标签实体，可点 ✕ 关闭（退格可删） */
+.chat-bot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--sem-accent-soft);
+  border: 1px solid rgba(162, 109, 232, 0.35);
+  color: var(--sem-accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+  margin-bottom: 3px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.chat-bot-chip-x {
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.chat-bot-chip-x:hover {
+  opacity: 1;
 }
 
 .chat-input-row {
