@@ -1,6 +1,7 @@
 package com.couple.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
@@ -30,6 +31,12 @@ public class GlobalExceptionHandler {
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
                 .collect(Collectors.joining("; "));
         return ResponseEntity.status(400).body(Result.error(400, message));
+    }
+
+    /** 客户端中断连接（浏览器取消视频加载/切换页面等）：响应已部分写出，静默处理 */
+    @ExceptionHandler(ClientAbortException.class)
+    public void handleClientAbort(ClientAbortException e) {
+        log.debug("客户端中断连接: {}", e.getMessage());
     }
 
     /** 兜底异常：500 */
